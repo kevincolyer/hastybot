@@ -1,0 +1,5 @@
+Files for HastyBot project
+
+You need to install perl and CPAN modules
+
+MediaWiki::Bot (I needed to force this to get it to install properly - although it passed 47 tests)
