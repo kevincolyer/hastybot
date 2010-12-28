@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+package HastyBot;
+
 use 5.10.0;
 use warnings;
 use strict;
@@ -13,32 +15,76 @@ use Data::Dumper::Simple;
 use Getopt::Long;
 use Tie::File::AsHash;
 
+BEGIN {
+        use Exporter   ();
+        our ($VERSION, @ISA, @EXPORT, @EXPORT_OK, %EXPORT_TAGS);
+        # set the version for version checking
+        $VERSION     = 0.99;
+        @ISA         = qw(Exporter);
+        @EXPORT      = qw();
+        %EXPORT_TAGS = ( );     # eg: TAG => [ qw!name1 name2! ],
+        # your exported package globals go here,
+        # as well as any optionally exported functions
+        @EXPORT_OK   = qw(%opts %seenpages &createbot &getpagelist &addtopage &ispageseen &purgepage &nextpage &getpage &savepage &markpageseen);
+    }
+    our @EXPORT_OK;
 # hastybot class - supersets wikipediabot class
 # call -> new 
 # CALL -> get opts - get command line
-# call -> get page (named page)
-# call -> next page - generates one by one -1==error, 0==finished. Handles redirects 
+# CALL -> get page (named page) - handles redirects (marks as seen) returns text of page
+# CALL -> next page name - returns one by one, accepts array to add to stack 
 # CALL -> set page (named page, content, editcomment) unless simulated and cache
 # CALL -> mark page seen (page, comment) 
 # CALL -> ispageseen (page)
 # CALL -> empty seen cache
-# call -> findreplace regex,addtotop,addtobottom
-# call -> get page list (new or all - given names space) but using cache - need empty first!
+# CALL -> findreplace regex,addtotop,addtobottom
+# CALL -> get page list (new or all - given names space) but using cache - need empty first!
+# CALL -> login - creates bot and logs in
+# call -> getuserhastybotpage (hastybot/arconyms) get and parse a little - remove comments etc?
+# call -> saveuserhastybotpage - put it back!
 
-# define globals
-tie our %hastybotconf, 'Tie::File::AsHash', 'HastyBot.conf', split => '~~~'
-    or die "Problem tying %hastybotconf: $!";
-our %opts;
+# define globals and tie's
 
-getargs() ;
+#TODO - these bits go in a BEGIN block I think?
 
-my $fn=$opts{botlogin}."-".$opts{wiki}."-seenpages.dat";
-say $fn;
-tie our %seenpages, 'Tie::File::AsHash', $fn, split => '~~~'
-    or die "Problem tying %seenpages: $!";
+    tie our %hastybotconf, 'Tie::File::AsHash', 'HastyBot.conf', split => '~~~'
+	or die "Problem tying %hastybotconf: $!"; # 1st
+    our %opts; # 2nd
+    getargs(); # 3rd
 
-warn Dumper %opts; #$opts{simulate}=1; #emptycache();
+    my $fn=$opts{botlogin}."-".$opts{wiki}."-seenpages.dat";
+    tie our %seenpages, 'Tie::File::AsHash', $fn, split => '~~~'
+	or die "Problem tying %seenpages: $!"; # 4th
 
+    #warn Dumper %opts; 
+    $opts{simulate}=1; $opts{verbose}=1; #emptycache();
+
+    say "(Debug mode enabled)"	    if $opts{debug};
+    say "(Simulate mode enabled)"   if $opts{simulate};
+    say "(Verbose mode selected)"   if $opts{verbose};
+
+    our $bot = MediaWiki::Bot->new('HastyBot'); 
+    createbot();
+    if ($opts{purge}) {purgepage ($opts{page})}; #only purge one page
+    getpagelist();
+
+
+# END of BEGIN block?
+
+#### user functions here - poss using ($page,$edit)=getpage() ####
+
+#what TODO about protected pages does/should hastybot have rights? Should there be a {{noRatingbar}} template or something?
+#addtopage(qr/\{\{RatingBar\}\}/, "{{RatingBar}}\n","","Adding {{RatingBar}} to page");
+
+##################################################################
+END {
+    say "\nHastyBot has finished and is going back to sleep..." if $opts{verbose};
+    say "Done." if !$opts{verbose};
+}
+
+1;
+
+#EXPORT
 sub getargs { 
     my $help;
     # defaults
@@ -53,6 +99,8 @@ sub getargs {
     botpass	=> '',
     action	=> 'nothing',
     whatpages	=> 'new',
+    page	=> '',
+    purge	=> '0',
     );
 
     foreach ( qw(wiki prefix botlogin botpass) )  {
@@ -70,22 +118,26 @@ sub getargs {
 	    'botlogin:s',
 	    'botpass:s',
 	    'action:s',
-	    'whatpages:s'
+	    'whatpages:s',
+	    'page:s',
+	    'purge',
     ) or defined $help );
-    #warn Dumper %opts; 
+    
     if ($opts{whatpages} !~ m/^(all|new|allseen)$/) {die "$opts{whatpages} not supported: new, all (but not seen) allseen (all including seen)"};
     foreach ( qw(wiki prefix botlogin botpass) )  {
 	$hastybotconf{$_}=$opts{$_}
     };
+    if ($opts{debug}) {$opts{verbose}=1};
     #warn Dumper %hastybotconf;
 };
 
 sub usage  {
-    print "Unknown option: @_\n" if ( @_ );
-    print "usage: hastybot etc [--help|-?]\n";
+    say "Unknown option: @_\n" if ( @_ );
+    say "usage: hastybot etc [--help|-?]";
     exit;
 };
 
+#EXPORT
 sub ispageseen {
     my ($page)=@_;
 #     say "$page in cache =".(defined $seenpages{$page});
@@ -97,14 +149,22 @@ sub emptycache {
     %seenpages=();
 };
 
-my @newestpages=getnewestpages("main");
+#EXPORT
+sub purgepage {
+    say "Purging cache for page [[@_]]";
+    return $bot->purge_page(@_);
+}
 
-say for @newestpages;
+#EXPORT
+sub getpagelist {
+    return nextpage("Sandbox") if $opts{debug};
+    return nextpage($opts{whatpages} eq 'new' ? getnewestpages() : getallpages()) ;
+}
 
 sub getnewestpages {
     my ($namespace) =@_;
     $namespace ||= "main"; #default if none specified.
-    print "Getting list of new pages from the wiki...\n";
+    say "Getting list of new pages from the wiki..." if $opts{verbose};
     # $i = get("http://www.ywamkb.net/kb/index.php/Special:NewPages"); #default is main namespace
     my $i = get("http://www.ywamkb.net/kb/index.php?title=Special:NewPages&namespace=$namespace");
     die "Couldn't get Special:NewPages." unless defined $i;
@@ -117,98 +177,120 @@ sub getnewestpages {
 
     while ($i=~ m/$pagetitlere/gcso) {
 	my $found=$1;
-	say "[[$found]]";
 	push @newestpages, $found; #build list of interesting pages
     };
+    say "Got ",scalar @newestpages if $opts{verbose};
     return @newestpages;
 };
 
-
-#Creating BOT and logging in...
-print "\nWaking HastyBot and charging him with busy-work!\n";
-my $bot = MediaWiki::Bot->new('HastyBot'); 
-$bot->set_wiki($opts{wiki},$opts{prefix});
-if ($opts{botlogin} eq '') {die "HastyBot needs a bot login. Specify with HastyBot --botlogin=ReallyHastyBot"; }
-if ($opts{botpass} eq '') {die "HastyBot needs a password. Specify with HastyBot --botpass=secret"; }
-$bot->login($opts{botlogin},$opts{botpass}); 
-print " Logged in...\n";
-###########################################do something with newest pages################
-
-my ($addtotop, $addtore,$addtobottom, $page,$edit,$redirectloop);
-$addtore=qr/\{\{RatingBar\}\}/;
-my $texttoadd="{{RatingBar}}";
-$addtotop="$texttoadd\n"; #add a newline as it keeps the headings happy. 
-$addtobottom="";
-$redirectloop=0;
-
-@newestpages=("Sandbox") if $opts{debug};
-
-for my $page (@newestpages) {
-    #Retrieve page from the wiki
-    if (ispageseen($page)) {
-	say "[[$page]] already seen - skipping...";
-	next;
+sub getallpages {
+    say "Getting ALL pages" if $opts{verbose};
+    if ($opts{whatpages} eq "all") { emptycache() }; 
+    my $namespace_id=0; #0=main # TODO
+    my @pages=$bot->get_pages_in_namespace($namespace_id);
+    say "Filtering ALL pages that are unseen already" if $opts{whatpages} eq 'allseen' && $opts{verbose};
+    @pages = grep { !ispageseen($_)  } @pages;
+    say scalar @pages, " pages listed" if $opts{verbose};
+    return @pages;
     }
 
+#EXPORT
+{ my @nextpages;
+sub nextpage {
+    #warn Dumper @nextpages, @_;
+    if (@_) {push @nextpages, (@_); say scalar @nextpages, " queued" if $opts{verbose}; return;} # add any arguments onto the list of pages and return doing nothing
+    return pop @nextpages if @nextpages;     # if any items in array return the next one
+    } 					     # otherwise, just return nothing
+};
+
+#EXPORT
+sub createbot {
+    say "\nWaking HastyBot and charging him with busy-work!" if $opts{verbose};
+    $bot->set_wiki( $opts{wiki}, $opts{prefix} );
+    if ($opts{botlogin} eq '') 		{ die "HastyBot needs a bot login. Specify with: HastyBot --botlogin=\n"; }
+    if ($opts{botpass}  eq '') 		{ die "HastyBot needs a password. Specify with: HastyBot --botpass=\n";   }
+    $bot->login( $opts{botlogin}, $opts{botpass} ) or die "Login failed";
+    say " Logged in..." if $opts{verbose};
+};
+
+#EXPORT
+sub addtopage {
+    my ($addtore, $addtotop, $addtobottom, $comment)=@_;
+    while (my ($page,$edit) = getpage()) {
+    if ($edit!~ m/$addtore/os) {
+	    #unless text is already there then edit and save
+	    $edit=$addtotop.$edit.$addtobottom;
+	    say "Match found: Adding TEXT to page [[$page]]";
+	    savepage($page,$edit,$comment);
+	} else {
+	    say "Match found. Text already exists - nothing to do" if $opts{verbose}; 
+	    markpageseen($page,"unmodified"); 
+	};
+    }
+};
+
+#EXPORT
+sub getpage {
+    my $redirectloop=0;
+    while (1) {
+    my $page = nextpage(); 
+    return if $page eq '0'; #quit because we are out of pages
+    #check page has not already been seen
+    if (ispageseen($page)) {
+	say "[[$page]] already seen - skipping..." if $opts{verbose};
+	next;
+    }
+    #check page has is not the Main Page
     if ($page eq "Main Page") {
-	say "[[Main Page]] skipped as HastyBot avoids this page";
+	say "[[Main Page]] skipped as HastyBot avoids this page if $opts{verbose}";
 	next;
     };
 
-    print "Retrieving Page [[$page]]\n";
-    $edit=$bot->get_text($page);
+    say "\nRetrieving Page [[$page]]" if $opts{verbose};
+    my $edit = $bot->get_text($page);
     die "Couldn't retrieve text of [[$page]]!" if (ref($edit) eq "SCALAR" && $edit==2);  #bomb out if error fetching...
 
     #check for redirects... #REDIRECT [[title]]
     if ($edit=~ m/^#REDIRECT \[\[(.*?)\]\]$/) {
 	$redirectloop++;
 	if ($redirectloop>10) {
-	print "Redirect loop detected after 10 redirects. Aborting...\n";
-	$redirectloop=0;
-	next;
+	    say "Redirect loop detected after 10 redirects. Aborting...";
+	    $redirectloop=0;
+	    next;
 	};
-	$page=$1;
-	print "  Redirect found - searching for page [[$1]]\n";
 	markpageseen($page,"redirect");
-	redo; #start again with page as redirect #warning - what if we ecounter a forever loop?
-	};
-    $redirectloop=0;
-
-    #MAKE THE EDIT
-    if ($edit!~ m/$addtore/os) {
-	#unless text is already there then edit and save
-	#check here for namespace?????
-	$edit=$addtotop.$edit.$addtobottom;
-	print "Match found: Adding TEXT to page.\n";
-	savepage($page,$edit,"Adding $texttoadd to page");
-    } else {
-	print "Match found. Text already exists - nothing to do\n"; 
-	markpageseen($page,"unmodified"); 
+	$page=$1;
+	say "  Redirect found - searching for page [[$page]]" if $opts{verbose};
+	redo; #start again with page as redirect
     };
-
+    # TODO what about redirects that take you to a different namespace?
+    return ($page,$edit);
+    };
 };
 
+#EXPORT
 sub savepage {
     my ($page, $edit, $comment) = @_;
-    print "  Saving Page [[$page]]... \n";
+    say "  Saving Page [[$page]]...";
     #if ($opts{debug}) {$page="User:HastyBot/Sandbox";}
     if (!$opts{simulate}) {
 	my $result=$bot->edit($page,$edit,$comment,1);
 	die "Problem saving page - edit not made." unless $result->{edit}{result} eq 'Success';
-	print "  Done\n";
+	say "  Done" if $opts{verbose};
 	markpageseen($page,"modified");
 	}
-    else {say "(Save simulated)"};    
+    else {say "(Save simulated)" if $opts{verbose}};    
 };
 
+#EXPORT
 sub markpageseen {
     my ($page,$comment) = @_;
     $comment ||= 'seen';
     $seenpages{$page}=$comment;
 };
-say "my work here is done...";
-my $pagename="YWAMKnowledgeBase:Statistics"; #this is the page we want to edit
-my ($x,$i,$result);
+
+# my $pagename="YWAMKnowledgeBase:Statistics"; #this is the page we want to edit
+# my ($x,$i,$result);
 #for testing...
 # $i=q{
 # <!-- start content -->
