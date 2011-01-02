@@ -5,6 +5,8 @@ package HastyBot;
 use 5.10.0;
 use warnings;
 use strict;
+use utf8;
+binmode STDOUT, ":encoding(UTF-8)";
 
 use LWP::Simple;
 use MediaWiki::Bot;
@@ -25,7 +27,7 @@ BEGIN {
         %EXPORT_TAGS = ( );     # eg: TAG => [ qw!name1 name2! ],
         # your exported package globals go here,
         # as well as any optionally exported functions
-        @EXPORT_OK   = qw(%opts %seenpages &createbot &getpagelist &addtopage &ispageseen &purgepage &nextpage &getpage &savepage &markpageseen);
+        @EXPORT_OK   = qw(%opts %seenpages &createbot &getpagelist &addtopage &ispageseen &purgepage &nextpage &getnextpage &savepage &markpageseen &getpage);
     }
     our @EXPORT_OK;
 # hastybot class - supersets wikipediabot class
@@ -45,33 +47,29 @@ BEGIN {
 
 # define globals and tie's
 
-#TODO - these bits go in a BEGIN block I think?
+tie our %hastybotconf, 'Tie::File::AsHash', 'HastyBot.conf', split => '~~~'
+    or die "Problem tying %hastybotconf: $!"; # 1st
+our %opts; # 2nd
+getargs(); # 3rd
 
-    tie our %hastybotconf, 'Tie::File::AsHash', 'HastyBot.conf', split => '~~~'
-	or die "Problem tying %hastybotconf: $!"; # 1st
-    our %opts; # 2nd
-    getargs(); # 3rd
+my $fn=$opts{botlogin}."-".$opts{wiki}."-seenpages.dat";
+tie our %seenpages, 'Tie::File::AsHash', $fn, split => '~~~'
+    or die "Problem tying %seenpages: $!"; # 4th
 
-    my $fn=$opts{botlogin}."-".$opts{wiki}."-seenpages.dat";
-    tie our %seenpages, 'Tie::File::AsHash', $fn, split => '~~~'
-	or die "Problem tying %seenpages: $!"; # 4th
+#warn Dumper %opts; 
+#$opts{simulate}=1; $opts{verbose}=1; #emptycache();
 
-    #warn Dumper %opts; 
-    $opts{simulate}=1; $opts{verbose}=1; #emptycache();
+say "(Debug mode enabled)"	    if $opts{debug};
+say "(Simulate mode enabled)"   if $opts{simulate};
+say "(Verbose mode selected)"   if $opts{verbose};
 
-    say "(Debug mode enabled)"	    if $opts{debug};
-    say "(Simulate mode enabled)"   if $opts{simulate};
-    say "(Verbose mode selected)"   if $opts{verbose};
-
-    our $bot = MediaWiki::Bot->new('HastyBot'); 
-    createbot();
-    if ($opts{purge}) {purgepage ($opts{page})}; #only purge one page
-    getpagelist();
+our $bot = MediaWiki::Bot->new('HastyBot'); 
+createbot();
+if ($opts{purge}) {purgepage ($opts{page})}; #only purge one page
+getpagelist();
 
 
-# END of BEGIN block?
-
-#### user functions here - poss using ($page,$edit)=getpage() ####
+#### user functions here - poss using ($page,$edit)=getnextpage() ####
 
 #what TODO about protected pages does/should hastybot have rights? Should there be a {{noRatingbar}} template or something?
 #addtopage(qr/\{\{RatingBar\}\}/, "{{RatingBar}}\n","","Adding {{RatingBar}} to page");
@@ -216,7 +214,7 @@ sub createbot {
 #EXPORT
 sub addtopage {
     my ($addtore, $addtotop, $addtobottom, $comment)=@_;
-    while (my ($page,$edit) = getpage()) {
+    while (my ($page,$edit) = getnextpage()) {
     if ($edit!~ m/$addtore/os) {
 	    #unless text is already there then edit and save
 	    $edit=$addtotop.$edit.$addtobottom;
@@ -230,15 +228,19 @@ sub addtopage {
 };
 
 #EXPORT
-sub getpage {
+sub getnextpage {
+    my $ignoreseen='';
+    if (@_) { $ignoreseen = shift };
     my $redirectloop=0;
     while (1) {
     my $page = nextpage(); 
     return if $page eq '0'; #quit because we are out of pages
     #check page has not already been seen
-    if (ispageseen($page)) {
-	say "[[$page]] already seen - skipping..." if $opts{verbose};
-	next;
+    if ($ignoreseen !~ /ignore\s*seen/i) {
+	if (ispageseen($page)) {
+	    say "[[$page]] already seen - skipping..." if $opts{verbose};
+	    next;
+	}
     }
     #check page has is not the Main Page
     if ($page eq "Main Page") {
@@ -268,6 +270,13 @@ sub getpage {
     };
 };
 
+sub getpage {
+    my ($page)=@_;
+    say "\nRetrieving Page [[$page]]" if $opts{verbose};
+    my $edit = $bot->get_text($page);
+    die "Couldn't retrieve text of [[$page]]!" if (ref($edit) eq "SCALAR" && $edit==2);  #bomb out if error fetching...
+    return $edit;
+}
 #EXPORT
 sub savepage {
     my ($page, $edit, $comment) = @_;

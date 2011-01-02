@@ -4,6 +4,8 @@ use 5.10.0;
 #use warnings;
 use strict;
 
+use utf8;
+binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
 use Data::Dumper::Simple;
 use Tie::File::AsHash;
@@ -33,7 +35,7 @@ sub titlecase {
 sub _titlecasemangler {
 	my ($s) = @_;
 	return lc($s) if $s=~ m/^\d+(st|nd|rd|th)[^a-z]*$/i ; # ignore 1st 2nd, 3rd, 4th etc.
-	return lc($s) if $s=~ m/^[^a-z]*(a(nd?|s|t|m)*|b(ut|y)|en|for|i[fnst]|o[fnr]|t[he|o]*|vs?\.?|via|etc)[\,\."':;]*$/i; # return lowercased ignore words  
+	return lc($s) if $s=~ m/^[^a-z]*(a(nd?|s|t|m)*|b(ut|y)|do|en|for|i[fnst]|o[fnr]|t[he|o]*|vs?\.?|via|etc|e\.g)[\,\."':;]*$/i; # return lowercased ignore words  
 	# handle acronyms well - via a hash
 	my $acro=isacronym($s);
 	return $acro if $acro;# if there is an acronym correct and return

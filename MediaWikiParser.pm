@@ -8,6 +8,7 @@ use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
 use Data::Dumper::Simple;
+use Regexp::Common qw /URI/;
 
 package MediaWikiParser;
  
@@ -17,48 +18,114 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 0.99;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse render);
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens);
 #our %EXPORT_TAGS = ( DEFAULT => [qw(&tokenise) ] );
 
-our %tokens = (
-BODYWORD	=> qr/(\w*)/,
-WS		=> qr/(\s*)/,
-NEWLINE		=> qr/(\n*)/,
-ILINK_O		=> qr/(\[)/,
-ILINK_C		=> qr/(\])/,
-TEMPL_O		=> qr/(\{\{)/,
-TEMPL_C		=> qr/(\}\})/,
-ELINK_O		=> qr/(\[\[)/,
-ELINK_C		=> qr/(\]\])/,
-URL		=> qr/(http)/,  #improve with regex module
-HEADING_O	=> qr/^(=*)/,
-HEADING_C	=> qr/[\s\b](=*)/,
-NOWIKI_O	=> qr/()/i,
-NOWIKI_C	=> qr/(<\/\s+nowiki>)/i,
-HTML_O		=> qr/(<\w+.*?>)/,
-HTML_C		=> qr/(<\/\w*>)/,
-HTML_SINGLE	=> qr/(<\/\w*>)/,
-#UNKNOWN - does not need a token...
-);
-
-
 sub tokenise {
-    my $text = shift;
+    my ($text) = @_;
     my @stack ;
-    my @token = [ "NOP", $text];
-    push @stack, @token;
-    warn Dumper @stack;
+    my $nowiki=0;
+    my $htmlcom=0;
+   # my $URI=qr/$RE{URI}{-keep}/;
+    my $tokens = sub {
+	TOKEN: { 
+	    #return ['URL',         $1]	if $text =~ /\G	$RE{URI}{-keep}	/gcxi;  #improve with regex module
+	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
+	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/\s*nowiki>)	/igcx;
+	    return ['HTMLCOM_O',   $1] 	if $text =~ /\G	(<!--)		/gcx;
+	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
+
+	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]{1,}__)	/gcx;
+	    return ['BODYWORD',    $1] 	if $text =~ /\G (\w+)		/gcx;
+	    return ['WS', 	   $1]	if $text =~ /\G (\s+)		/gcx;
+	    return ['NEWLINE',     $1]	if $text =~ /\G (\n+)		/gcx;
+	    return ['BOLD',	   $1]  if $text =~ /\G (''')		/gcx;
+	    return ['ITALIC',	   $1]  if $text =~ /\G ('')		/gcx;
+	    return ['APOSTROPHY',  $1]  if $text =~ /\G (')^'		/gcx;
+	    return ['HEADING_O',   $1] 	if $text =~ /\G ^(=+)		/gcx;
+	    return ['HEADING_C',   $1] 	if $text =~ /\G (=+)		/gcx;
+
+	    #BULLET
+	    #NUMBERLIST
+	    #DEFINITION
+	    #TABLES!!!!
+
+	    return ['ELINK_O',     $1]	if $text =~ /\G (\[)^\[		/gcx;
+	    return ['ELINK_C',     $1]	if $text =~ /\G (\])^\[		/gcx;
+	    return ['TEMPL_O',     $1] 	if $text =~ /\G	(\{\{)		/gcx;
+	    return ['TEMPL_C',     $1] 	if $text =~ /\G	(\}\})		/gcx;
+	    return ['ILINK_O',     $1] 	if $text =~ /\G	(\[\[)		/gcx;
+	    return ['ILINK_C',     $1] 	if $text =~ /\G	(\]\])		/gcx;
+	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcx;
+	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\s*\w*>)	/gcx;
+	    return ['HTML_SINGLE', $1]	if $text =~ /\G(<\/+\s*\w*\s*\/+>)/gcx;
+
+	    return ['UNKNOWN',     $1] 	if $text =~ /\G(.)		/gcx;
+	    #redo TOKEN if 
+	    return undef;
+	} ;
+    };
+    my ($this, $last);
+    $last="n/a";
+    while (my $tok=$tokens->()) {
+	# comments 
+	# opening and closing comments
+	# $nowiki $htmlcom
+	# htmlcomments
+	if ($tok->[0] eq 'HTMLCOM_O') {
+	    if ($nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
+	    else {$tok->[0] = 'HTMLCOM'; $htmlcom=1}
+	};
+	if ($tok->[0] eq 'HTMLCOM_C') {
+	    if ($nowiki or !$htmlcom) {$tok->[0] = 'UNKNOWN'}
+	    else {$tok->[0] = 'HTMLCOM'; $htmlcom=0}
+	};
+	#nowiki comments
+	if ($tok->[0] eq 'NOWIKI_O') {
+	    if ($nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
+	    else {$tok->[0] = 'NOWIKI'; $nowiki=1}
+	};
+	if ($tok->[0] eq 'NOWIKI_C') {
+	    if (!$nowiki or $htmlcom) {$tok->[0] = 'UNKNOWN'}
+	    else {$tok->[0] = 'NOWIKI'; $nowiki=0}
+	};
+	#If in a comment - ignore the text
+	if ($nowiki+$htmlcom and $tok->[0] ne 'NOWIKI' and $tok->[0] ne 'HTMLCOM') {
+	    $tok->[0] = 'IGNORE';
+	}
+	#
+	# some optimisation to reduce tokens
+	$this=$tok->[0];
+	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE')) {
+	    $stack[-1]->[1].=$tok->[1];
+	    next;
+	}
+	push @stack, $tok;
+	$last=$this;
+    }
+    #warn Dumper @stack;
     return @stack;
 }
+
 
 sub parse {
     return ;
 }
 
-sub render {
+sub rendertext {
+   # _render("|",1,@_);
+    _render("" ,1,@_);
+}
+
+sub rendertokens {
+    _render("|",0,@_)
+}
+sub _render {
     my $text;
-    my (@stack) = @_;
-    $text = join "|", map {  @{$_}[1]  } @stack;
+    my ($join,$which,@stack) = @_;
+    $text = join $join, map {  @{$_}[$which]  } @stack;
+    say $text;
     return $text;
 }
+
 1;

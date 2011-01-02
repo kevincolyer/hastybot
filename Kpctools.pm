@@ -13,7 +13,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 0.99;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(commify);
+our @EXPORT_OK   = qw(commify snippet);
 #our %EXPORT_TAGS = ( DEFAULT => [qw(&XXX &XXX &XXX &XXX) ] );
 
 sub commify {
@@ -24,4 +24,12 @@ sub commify {
    return $input;
 }
 #return one as we are a package
+sub snippet {
+    my $text = shift;
+    my $len = shift || 72;
+    $text = substr($text,0,$len);
+    $text =~ s/\n//g;
+    $text =~ s/\{\{.*?\}\}//g;
+    return "... ".$text." ...";
+}
 1;

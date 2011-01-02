@@ -8,14 +8,90 @@ use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 
 #use Titlecase qw(titlecase isanacronym ucfirstimproved possibleacronym);
-use MediaWikiParser qw(tokenise parse render);
+use MediaWikiParser qw(tokenise parse rendertext rendertokens);
 
 say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
-my $test=	qq<==DTS==\nDTS is very cool. I like it. {{RatingBar}}>;
-my $expected=	$test;
-
 use Test::More qw( no_plan ); #tests => 3;
 
-is( render( tokenise($test) ) , $expected, "Parsing and re-rendering Integrity Test");
+my ($test,$expected);
+$test=	qq<==DTS==\n\n\nDTS is very cool. I like it. {{RatingBar}}>;
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - first test");
 
+$test=	qq<blah blah's "blah" '''blah''' blah blah blah>;
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - apostrophe");
+
+$test=	qq<blah [blahs blah] http://www.ywamkb.net blah blah blah blah>;
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - external links");
+
+$test=	qq<blah [[blahs]] [[blah|blah blah [blah blah]]] blah blah>;
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - internal links");
+
+$test=	qq<blah blahs {{blah|blah{{blah}}}}blah blah>;
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - templates");
+
+$test=	qq<blah blahs <nowiki> [[blah]] blah </nowiki> </ nowiki> blah>;
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - nowiki");
+
+$test=	qq{blah <blah class="" > blah </ blah> blah </blah> blah};
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - html");
+
+$test=	qq{blah blah's '''''blah''''' ''blah'' '''blah''' blah};
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - html");
+
+$test=	qq{ftp://blah.blah __BLAH__ __blah__https://blah.blah.blah http://blah.blah.blah mailto:kevin\@example.com};
+$expected=	$test; rendertokens(tokenise($test));
+is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - html");
+
+# tokenising tests
+
+# comments and nowiki
+#<!-- [[dts]] -->
+##
+##*HTMLCOM|IGNORE|HTMLCOM
+$test=		qq{<!-- [[dts]] -->};
+$expected=	qq{HTMLCOM|IGNORE|HTMLCOM}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
+
+# <nowiki>[[DTS]]<!--showme</nowiki>-->
+##[[DTS]]<!--showme-->
+##*NOWIKI|IGNORE|NOWIKI|BODYWORD
+$test=		qq{<nowiki>[[DTS]]<!--showme</nowiki>-->};
+$expected=	qq{NOWIKI|IGNORE|NOWIKI|UNKNOWN}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - NOWIKI comments");
+
+# <nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>
+##[[DTS]]<!-- hello --></nowiki>
+##*NOWIKI|IGNORE|NOWIKI|UNKNOWN|NOWIKI|NOWIKI
+$test=		qq{<nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>};
+$expected=	qq{NOWIKI|IGNORE|NOWIKI|UNKNOWN|NOWIKI|NOWIKI}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - NOWIKI comments");
+
+# <!--[[DTS]]<nowiki>[[DTS]]Insert non-formatted text here</nowiki>-->
+#
+##*HTMLCOM|IGNORE|HTMLCOM
+$test=		qq{<!--[[DTS]]<nowiki>[[DTS]]Insert non-formatted text here</nowiki>-->};
+$expected=	qq{HTMLCOM|IGNORE|HTMLCOM}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
+
+# <!--<nowiki>Insert non-formatted text here--></nowiki>
+##</nowiki>
+##*IGNORE|NOWIKI_C
+$test=		qq{<!-- [[dts]] -->};
+$expected=	qq{HTMLCOM|IGNORE|HTMLCOM}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
+
+
+# [[DTS
+#]]
+##[[DTS
+##]]
+##*ILINK_O|BODYWORD|NL|ILINK_C
