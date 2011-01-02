@@ -89,7 +89,34 @@ $test=		qq{<!-- [[dts]] -->};
 $expected=	qq{HTMLCOM|IGNORE|HTMLCOM}; rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
 
+$test=		qq{hello\n\n\nworld\nhello world \n};
+$expected=	qq{BODYWORD|NL|BODYWORD|NL|BODYWORD|WS|BODYWORD|WS|NL}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - NEWLINES");
 
+$test=		qq{   hello \n\n world   \n};
+$expected=	qq{WS|BODYWORD|WS|NL|WS|BODYWORD|WS|NL}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - Whitespace");
+
+# === heading ===
+##=== heading ===
+##*H3|WS|BODYWORD|WS|H3
+$test=		qq{=== heading ===};
+$expected=	qq{H3|WS|BODYWORD|WS|H3}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - balanced headings");
+
+# === heading ==\n== heading ===
+##=== heading ==\n== heading ===
+##*H2|UNKNOWN|WS|BODYWORD|WS|H2|NL|H2|WS|BODYWORD|WS|H2|UNKNOWN
+$test=		qq{=== heading ==\n== heading ===};
+$expected=	qq{H2|UNKNOWN|WS|BODYWORD|WS|H2|NL|H2|WS|BODYWORD|WS|H2|UNKNOWN}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - unbalanced headings");
+
+# === heading\n ===
+##=== heading\n ===
+##*H3|WS|BODYWORD|NL|WS|UNKNOWN
+$test=		qq{=== heading\n ===};
+$expected=	qq{H3|WS|BODYWORD|NL|WS|UNKNOWN}; rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "Tokenising - balanced headings");
 # [[DTS
 #]]
 ##[[DTS
