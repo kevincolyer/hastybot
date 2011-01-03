@@ -224,16 +224,6 @@ sub _searchtextparser {
 	NOWIKI 		=> 'IGNORE',
 	URL 		=> 'IGNORE',
     );
-    my $simplify=sub {
-	my @returnstack;
-	while (my $tok=shift @_) {
-	    if (!exists $groups{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN';}; 
-	    $tok->[0]=$groups{$tok->[0]}; # pass 1 groups tokens
-	    $tok->[0]=$groups{$tok->[0]}; # pass 2 choose which to ignore and which to keep
-	    push @returnstack, $tok; #and return the renamed token
-	}
-	return @returnstack;
-    };
     #templates => ignore
     my $templatedepth=0;
     while (@stack) {
@@ -265,9 +255,15 @@ sub _searchtextparser {
     #tables => ignore
     #
     #optimise - simplify to bodytext or ignore
-    @stack=$simplify->(@returnstack);
+    @stack=_simplify(%groups¸@returnstack);
     #optimise - combine adjacant identical tokens
-    @returnstack=();
+    @stack=_optimise(@stack);
+    return @stack;
+}
+
+sub _optimise {
+    my (@stack)=@_;
+    my @returnstack;
     if (length @stack >1) {
 	my $tok= shift @stack;
 	my $last=$tok->[0];
@@ -282,9 +278,20 @@ sub _searchtextparser {
 	push @returnstack, $tok;
 	$last=$this;
 	};
-    @stack=@returnstack;
+    return @returnstack;
     }
     return @stack;
 }
 
+sub _simplify {
+	my %groups=shift;
+	my @returnstack;
+	while (my $tok=shift @_) {
+	    if (!exists $groups{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN';}; 
+	    $tok->[0]=$groups{$tok->[0]}; # pass 1 groups tokens
+	    $tok->[0]=$groups{$tok->[0]}; # pass 2 choose which to ignore and which to keep
+	    push @returnstack, $tok; #and return the renamed token
+	}
+	return @returnstack;
+    };
 1;
