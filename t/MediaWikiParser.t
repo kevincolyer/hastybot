@@ -131,7 +131,13 @@ is( rendertokens(tokenise($test)) , $expected, "Tokenising - balanced headings")
 ##[[DTS
 ##]]
 ##*ILINK_O|BODYWORD|NL|ILINK_C
-$test=		qq<hello{{[[dts]]world  {{hello}}}} }}>;
-$expected=	qq{BODYTEXT|IGNORE|BODYTEXT|IGNORE};
+say "Using SIMPLEPARSER...\n";
+$test=		qq<==hello{{[[dts]]world  {{hello}}}} }}==>;
+$expected=	qq{IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE};
 is( rendertokens(parse($test)) , $expected, "Tokenising - templates and optimising and simplifying");
-is( rendertext(parse($test)) , $test, "Tokenising and rendering fidelity - templates and optimising and simplifying");
+is( rendertext(parse($test)) , $test, "Tokenising and rendering fidelity");
+
+$test=		qq<[[hello]] [[this is a link|oh yes it i1]] ]]>;
+$expected=	qq{IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE};
+is( rendertokens(parse($test)) , $expected, "Tokenising - internal links");
+is( rendertext(parse($test)) , $test, "Tokenising - internal links rendering fidelity");

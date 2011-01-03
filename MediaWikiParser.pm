@@ -9,6 +9,7 @@ binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
 use Data::Dumper::Simple;
 #use Regexp::Common qw /URI/;
+use Carp;
 
 package MediaWikiParser;
  
@@ -217,7 +218,7 @@ sub _searchtextparser {
 	IGNORE 		=> 'IGNORE', 		# needed for pass2
 	HTML 		=> 'IGNORE',
 	TEMPLATE	=> 'IGNORE',
-	ILINK 		=> 'IGNORE',
+	ILINK 		=> 'ILINK',		#'IGNORE',
 	ELINK 		=> 'IGNORE',
 	TABLE 		=> 'IGNORE',
 	HEADING 	=> 'IGNORE',
@@ -227,21 +228,22 @@ sub _searchtextparser {
     );
     # parse using a chain of sub parsers...
 
-    #templates => ignore i.e. simple
+    # templates => ignore i.e. simple
     @stack=  _parsetemplate_simple(@stack);
-    #warn Dumper @stack;
-    #elink => ignore i.e. simple
+    # elink => ignore i.e. simple
     @stack=	_parseelink_simple(@stack);
-    #ilink => ignore i.e. simple
+    # ilink => ignore i.e. simple
     @stack=     _parseilink_simple(@stack);
-    #tables => ignore i.e. simple
+    # tables => ignore i.e. simple
     @stack=     _parsetable_simple(@stack);
+    # headings - makeing sure they balance etc.
+    @stack=          _parseheading(@stack);
 
-    #optimise #1 - group tokens
+    # optimise #1 - group tokens
     @stack=     _simplify(\%groups,@stack);
-    #optimise #2 - combine adjacant identical tokens
+    # optimise #2 - combine adjacant identical tokens
     @stack=_optimise(@stack);
-    #and we are done...
+    # and we are done...
     return @stack;
 }
 
@@ -250,13 +252,67 @@ sub _parseelink_simple {
 }
  
 sub _parseilink_simple {
-    return @_;
+    my $depth=0;
+    my $firstbar=0;
+    my $lastbar=0;
+    my @returnstack;
+    while (my $tok=shift @_) {
+	if ($depth==0) { 					# if we are not in a link...
+	    if ($tok->[0] eq 'ILINK_C') {$tok->[0]='IGNORE'};   # if close before open ignore
+	    if ($tok->[0] eq 'ILINK_O') {			# mark opening of elink
+		$depth=length @returnstack +1;
+		$firstbar=0;
+	        $lastbar=0;
+	    };
+	    push @returnstack, $tok; 				# anything else drops through...
+	    next;
+	} 
+
+	# we are in a link...
+	if ($tok->[0] eq 'NL') { 				# if eol then Ilink should be ignored... 
+	    $returnstack[$depth]->[0]='IGNORE'; 
+	    $depth=0;						# mark as not in link
+	    push @returnstack, $tok;
+	    next;
+	};
+	if ($tok->[0] eq 'ILINK_C') {				#finished link success - now re-write and reset vars.
+	    if ($firstbar) {
+		# >$depth to <$firstbar = ILINK_PAGE
+		# >$lastbar to end array = ILINK_COMMENT
+		for ($depth+1..$firstbar-1) {
+		    $returnstack[$_]->[0]='ILINK_PAGE';
+		};
+		if ($lastbar) {
+		    for ($lastbar+1..length(@returnstack)) {
+			$returnstack[$_]->[0]='ILINK_COMMENT';
+		    }
+		};
+	    };
+	    $depth=0; 
+	    push @returnstack, $tok;
+	    next;
+	} ;		
+	if ($tok->[0] eq 'BAR') {
+	    $firstbar=length @returnstack +1 if !$firstbar;	# before is ILINK_PAGE
+	    $lastbar= length @returnstack +1 if  $firstbar;	# last is ILINK_COMMENT
+	    $tok->[0]='IGNORE';					# ignore BAR now please
+	    push @returnstack, $tok;
+	    next;
+	};
+	$tok->[0] = 'IGNORE';					#ignore all to end bracket... but rewrite on exit from link
+	push @returnstack, $tok;
+	next;
+    }
+    return @returnstack;
 }
  
 sub _parsetable_simple {
     return @_;
 }
 
+sub _parseheading {
+    return @_;
+}
 
 sub _parsetemplate_simple {
     my $templatedepth=0;
@@ -267,19 +323,13 @@ sub _parsetemplate_simple {
 	my $this=$tok->[0];
 	if ($this eq 'TEMPL_O') {
 	    $templatedepth++;
-	    #$tok->[0]='TEMPLATE';
-	    push @returnstack, $tok;# mark as template
-# 	    my $template=_simpletextparser(@stack);#call self with remains of token stream
-# 	    push @returnstack, $template;#put token stream back in stack
+	    push @returnstack, $tok;
 	    next};
 	if ($this eq 'TEMPL_C') {
-	    if ($templatedepth==0) {#ignore close template if no prev. matching
+	    if ($templatedepth==0) {   # ignore close template if no prev. matching
 		$tok->[0]='IGNORE'}
-	    else {$templatedepth!=0;#cloase if open
-		#$tok->[0]='TEMPLATE';
-		$templatedepth--;#ascend a level
-# 		push @returnstack,$tok;
-# 		return @returnstack;#return as we recusively call self to process templates
+	    else {$templatedepth!=0;   # close if open
+		$templatedepth--;      # ascend a level
 	    }
 	} elsif ($templatedepth!=0) {$tok->[0]='IGNORE';};
 	push @returnstack, $tok;
