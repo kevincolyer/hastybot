@@ -167,8 +167,9 @@ sub _render {
 }
 
 sub _searchtextparser {
-    my (@stack) =@_;
-    my @returnstack;
+    my (@stack) =@_; #recieve a list of tokens
+    
+    # groups for simplification... 
     my %groups = (
 	MAILTO 		=> 'URL',      
 	HTTP 		=> 'URL',        
@@ -224,8 +225,43 @@ sub _searchtextparser {
 	NOWIKI 		=> 'IGNORE',
 	URL 		=> 'IGNORE',
     );
-    #templates => ignore
+    # parse using a chain of sub parsers...
+
+    #templates => ignore i.e. simple
+    @stack=  _parsetemplate_simple(@stack);
+    #warn Dumper @stack;
+    #elink => ignore i.e. simple
+    @stack=	_parseelink_simple(@stack);
+    #ilink => ignore i.e. simple
+    @stack=     _parseilink_simple(@stack);
+    #tables => ignore i.e. simple
+    @stack=     _parsetable_simple(@stack);
+
+    #optimise #1 - group tokens
+    @stack=     _simplify(\%groups,@stack);
+    #optimise #2 - combine adjacant identical tokens
+    @stack=_optimise(@stack);
+    #and we are done...
+    return @stack;
+}
+
+sub _parseelink_simple {
+    return @_;
+}
+ 
+sub _parseilink_simple {
+    return @_;
+}
+ 
+sub _parsetable_simple {
+    return @_;
+}
+
+
+sub _parsetemplate_simple {
     my $templatedepth=0;
+    my (@stack)=@_;
+    my @returnstack;
     while (@stack) {
 	my $tok = shift @stack;
 	my $this=$tok->[0];
@@ -248,17 +284,7 @@ sub _searchtextparser {
 	} elsif ($templatedepth!=0) {$tok->[0]='IGNORE';};
 	push @returnstack, $tok;
     };
-    @stack=@returnstack;
-    #warn Dumper @stack;
-    #elink => ignore
-    #ilink => ignore
-    #tables => ignore
-    #
-    #optimise - simplify to bodytext or ignore
-    @stack=_simplify(%groups¸@returnstack);
-    #optimise - combine adjacant identical tokens
-    @stack=_optimise(@stack);
-    return @stack;
+    return @returnstack;
 }
 
 sub _optimise {
@@ -284,12 +310,13 @@ sub _optimise {
 }
 
 sub _simplify {
-	my %groups=shift;
+	my $groups=shift;
+	#warn Dumper $groups, @_;
 	my @returnstack;
 	while (my $tok=shift @_) {
-	    if (!exists $groups{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN';}; 
-	    $tok->[0]=$groups{$tok->[0]}; # pass 1 groups tokens
-	    $tok->[0]=$groups{$tok->[0]}; # pass 2 choose which to ignore and which to keep
+	    if (!exists $groups->{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN';}; 
+	    $tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
+	    $tok->[0]=$groups->{$tok->[0]}; # pass 2 choose which to ignore and which to keep
 	    push @returnstack, $tok; #and return the renamed token
 	}
 	return @returnstack;
