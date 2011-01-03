@@ -227,7 +227,7 @@ sub _searchtextparser {
     my $simplify=sub {
 	my @returnstack;
 	while (my $tok=shift @_) {
-	    $tok->[0]='UNKNOWN' if !exists $groups{$tok->[0]};
+	    if (!exists $groups{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN';}; 
 	    $tok->[0]=$groups{$tok->[0]}; # pass 1 groups tokens
 	    $tok->[0]=$groups{$tok->[0]}; # pass 2 choose which to ignore and which to keep
 	    push @returnstack, $tok; #and return the renamed token
@@ -235,7 +235,6 @@ sub _searchtextparser {
 	return @returnstack;
     };
     #templates => ignore
-    my $templatestart=0;
     my $templatedepth=0;
     while (@stack) {
 	my $tok = shift @stack;
