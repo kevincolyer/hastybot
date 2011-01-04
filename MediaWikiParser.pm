@@ -32,9 +32,19 @@ sub tokenise {
     my $tokens = sub {
 	TOKEN: { 
 	    #	    'URL'
-	    return ['MAILTO',      $1] 	if $text =~ /\G (mailto:)	/gcxi;
-	    return ['HTTP',        $1] 	if $text =~ /\G (http:\/\/|https:\/\/)	/gcxi;
-	    return ['FTP',         $1] 	if $text =~ /\G (ftp:\/\/|ftps:\/\/)	/gcxi;
+	    return ['MAILTO',      $1] 	if $text =~ /\G (
+							(?:mailto:)
+							(?:\/\/)?	#optional
+							(?:kevin\@example\.com)?
+							)		/gcxi;
+	    return ['URL',         $1] 	if $text =~ /\G (
+							(?:http|https|ftp)\:\/\/  # protocol
+							(?:[^\:\/\s\]]+)         # server
+							(?:\:\d+)?              # port - optional
+							(?:\/[^\#\s]+)?         # page - optional
+							(?:\#(?:\S*))?         # place - optional
+								)	/gcxi;
+	    #return ['FTP',         $1] 	if $text =~ /\G (ftp:\/\/|ftps:\/\/)	/gcxi;
 	    #	    'NOWIKI'
 	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
 	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/\s*nowiki>)	/igcx;
@@ -44,6 +54,9 @@ sub tokenise {
 
 	    #	    'IGNORE' (AND UNKNOWN)
 	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]{1,}__)	/gcx;
+	    #	    'TABLE'
+	    return ['TABLE_O',     $1]	if $text =~ /\G (\{\|)		/gcx;
+	    return ['TABLE_C', 	   $1]	if $text =~ /\G (\|\})		/gcx;
 	    #	    'BODYTEXT'
 	    return ['BODYWORD',    $1] 	if $text =~ /\G (\w+)		/gcx;
 	    return ['BAR',         $1] 	if $text =~ /\G (\|)		/gcx;
@@ -62,9 +75,6 @@ sub tokenise {
 	    #BULLET
 	    #NUMBERLIST
 	    #DEFINITION
-	    #	    'TABLE'
-	    return ['TABLE_O',     $1]	if $text =~ /\G (\{\|)		/gcx;
-	    return ['TABLE_C', 	   $1]	if $text =~ /\G (\|\})		/gcx;
 	    #	    'ELINK'
 	    return ['ELINK_O',     $1]	if $text =~ /\G (\[)^\[		/gcx;
 	    return ['ELINK_C',     $1]	if $text =~ /\G (\])^\[		/gcx;
@@ -134,6 +144,7 @@ sub tokenise {
 	#
 	# some optimisation to reduce tokens
 	$this=$tok->[0];
+	warn "UNKOWN token encountered |".$tok->[1]."|" if $this eq 'UNKNOWN';
 	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' or $this eq 'WS')) {
 	    $stack[-1]->[1].=$tok->[1];
 	    next;
@@ -152,7 +163,7 @@ sub parse {
 }
 
 sub rendertext {
-    _render("|",1,@_);
+    #_render("|",1,@_);
     _render("" ,1,@_);
 }
 
@@ -206,6 +217,8 @@ sub _searchtextparser {
 	
 	ILINK_O 	=> 'ILINK',     
 	ILINK_C 	=> 'ILINK',   
+	ILINK_PAGE	=> 'ILINK',
+	ILINK_COMMENT	=> 'ILINK',
 	
 	HTML_O 		=> 'HTML',      
 	HTML_C 		=> 'HTML',      
@@ -218,7 +231,7 @@ sub _searchtextparser {
 	IGNORE 		=> 'IGNORE', 		# needed for pass2
 	HTML 		=> 'IGNORE',
 	TEMPLATE	=> 'IGNORE',
-	ILINK 		=> 'ILINK',		#'IGNORE',
+	ILINK 		=> 'IGNORE',
 	ELINK 		=> 'IGNORE',
 	TABLE 		=> 'IGNORE',
 	HEADING 	=> 'IGNORE',
@@ -242,7 +255,7 @@ sub _searchtextparser {
     # optimise #1 - group tokens
     @stack=     _simplify(\%groups,@stack);
     # optimise #2 - combine adjacant identical tokens
-    @stack=_optimise(@stack);
+    @stack=		 _optimise(@stack);
     # and we are done...
     return @stack;
 }
@@ -252,62 +265,92 @@ sub _parseelink_simple {
 }
  
 sub _parseilink_simple {
-    my $depth=0;
+    my $open=0;
+    my $inilink=0;
     my $firstbar=0;
     my $lastbar=0;
     my @returnstack;
     while (my $tok=shift @_) {
-	if ($depth==0) { 					# if we are not in a link...
+	if ($inilink==0) { 					# if we are not in a link...
 	    if ($tok->[0] eq 'ILINK_C') {$tok->[0]='IGNORE'};   # if close before open ignore
 	    if ($tok->[0] eq 'ILINK_O') {			# mark opening of elink
-		$depth=length @returnstack +1;
+		$open=@returnstack;
+		#say "open @ $open";
+		$inilink=1;
 		$firstbar=0;
 	        $lastbar=0;
-	    };
+	    }; # ILINK_O ================= END
 	    push @returnstack, $tok; 				# anything else drops through...
 	    next;
 	} 
 
 	# we are in a link...
-	if ($tok->[0] eq 'NL') { 				# if eol then Ilink should be ignored... 
-	    $returnstack[$depth]->[0]='IGNORE'; 
-	    $depth=0;						# mark as not in link
+	if ($tok->[0] eq 'NL') { # NL ==== END			# if eol then Ilink should be ignored... 
+	    $returnstack[$open]->[0]='IGNORE'; 
+	    $inilink=0;						# mark as not in link
 	    push @returnstack, $tok;
 	    next;
+	    # NL ========================= END
 	};
+	# ILINK_C =============
 	if ($tok->[0] eq 'ILINK_C') {				#finished link success - now re-write and reset vars.
 	    if ($firstbar) {
 		# >$depth to <$firstbar = ILINK_PAGE
 		# >$lastbar to end array = ILINK_COMMENT
-		for ($depth+1..$firstbar-1) {
+		#say "starting rewitre of ilink_page";
+		for ($open+1 .. $firstbar-1) {
+		    #say $_;
 		    $returnstack[$_]->[0]='ILINK_PAGE';
-		};
+		}
 		if ($lastbar) {
-		    for ($lastbar+1..length(@returnstack)) {
+		    #say "starting rewitre of ilink_comment";
+		    for ($lastbar+1..@returnstack-1) {
+			#say $_;
 			$returnstack[$_]->[0]='ILINK_COMMENT';
 		    }
-		};
+		}
+	    } else { 
+		#say "no bars encountered...";
+		for ($open+1..@returnstack-1) {
+		    #say $_;
+		    $returnstack[$_]->[0]='ILINK_PAGE';
+		    }
 	    };
-	    $depth=0; 
+	    #say "ending rewrite and closing the ilink";
+	    $open=0; 
+	    $inilink=0;
 	    push @returnstack, $tok;
 	    next;
-	} ;		
+	} ; # ILINK_C =====END		
+	    # BAR ============
 	if ($tok->[0] eq 'BAR') {
-	    $firstbar=length @returnstack +1 if !$firstbar;	# before is ILINK_PAGE
-	    $lastbar= length @returnstack +1 if  $firstbar;	# last is ILINK_COMMENT
-	    $tok->[0]='IGNORE';					# ignore BAR now please
+	    $firstbar=@returnstack if !$firstbar;	# before is ILINK_PAGE
+	    $lastbar =@returnstack if  $firstbar;	# last is ILINK_COMMENT
+	    $tok->[0]='IGNORE';				# ignore BAR now please
+	    #say "first bar $firstbar, last bar $lastbar";
 	    push @returnstack, $tok;
 	    next;
-	};
+	}; # BAR ==========END
 	$tok->[0] = 'IGNORE';					#ignore all to end bracket... but rewrite on exit from link
 	push @returnstack, $tok;
-	next;
     }
     return @returnstack;
 }
  
 sub _parsetable_simple {
-    return @_;
+    my @returnstack;
+    my $intable=0;
+    while (my $tok=shift @_) {
+	if ($tok->[0] eq 'TABLE_C' and $intable) { # only if in table can we close
+		$intable--;
+	}
+	if ($tok->[0] eq 'TABLE_O') {
+	    $intable++;
+	}
+	$tok->[0]='IGNORE' if $intable or $tok->[0] eq 'TABLE_C' ; #ignore everything in table
+	push @returnstack, $tok;
+    }
+    return @returnstack;
 }
 
 sub _parseheading {
@@ -340,6 +383,7 @@ sub _parsetemplate_simple {
 sub _optimise {
     my (@stack)=@_;
     my @returnstack;
+    #warn Dumper @stack;
     if (length @stack >1) {
 	my $tok= shift @stack;
 	my $last=$tok->[0];
@@ -354,7 +398,7 @@ sub _optimise {
 	push @returnstack, $tok;
 	$last=$this;
 	};
-    return @returnstack;
+	return @returnstack;
     }
     return @stack;
 }
@@ -364,7 +408,7 @@ sub _simplify {
 	#warn Dumper $groups, @_;
 	my @returnstack;
 	while (my $tok=shift @_) {
-	    if (!exists $groups->{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN';}; 
+	    if (!exists $groups->{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN'}; 
 	    $tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
 	    $tok->[0]=$groups->{$tok->[0]}; # pass 2 choose which to ignore and which to keep
 	    push @returnstack, $tok; #and return the renamed token
