@@ -3,7 +3,7 @@
 use 5.10.0;
 #use warnings;
 use strict;
-
+# licence - perl artistic licence...
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
@@ -32,13 +32,19 @@ sub tokenise {
     my $tokens = sub {
 	TOKEN: { 
 	    #	    'URL'
+	    # http regexp inspiration from http://www.wellho.net/resources/ex.php4?item=p212/regextra
+	    # tokenise some code and inspiration from MJD's Higher Order Perl...
 	    return ['MAILTO',      $1] 	if $text =~ /\G (
-							(?:mailto:)
-							(?:\/\/)?	#optional
-							(?:kevin\@example\.com)?
+							(?:mailto\:)
+							(?:\/\/)?		# optional
+							(?:[^\s]+)		# before @
+							(?:\@)			# must have an @
+							(?:(?:[^\s\]\.])+)	# atleast one word
+							(?:\.(?:[^\s\]])+)?	# optional . and word
 							)		/gcxi;
 	    return ['URL',         $1] 	if $text =~ /\G (
-							(?:http|https|ftp)\:\/\/  # protocol
+							(?:http|https|ftp)
+							(?:\:\/\/)  
 							(?:[^\:\/\s\]]+)         # server
 							(?:\:\d+)?              # port - optional
 							(?:\/[^\#\s]+)?         # page - optional
@@ -75,15 +81,15 @@ sub tokenise {
 	    #BULLET
 	    #NUMBERLIST
 	    #DEFINITION
-	    #	    'ELINK'
-	    return ['ELINK_O',     $1]	if $text =~ /\G (\[)^\[		/gcx;
-	    return ['ELINK_C',     $1]	if $text =~ /\G (\])^\[		/gcx;
-	    #	    'TEMPLATE'
-	    return ['TEMPL_O',     $1] 	if $text =~ /\G	(\{\{)		/gcx;
-	    return ['TEMPL_C',     $1] 	if $text =~ /\G	(\}\})		/gcx;
 	    #	    'ILINK'
 	    return ['ILINK_O',     $1] 	if $text =~ /\G	(\[\[)		/gcx;
 	    return ['ILINK_C',     $1] 	if $text =~ /\G	(\]\])		/gcx;
+	    #	    'ELINK'
+	    return ['ELINK_O',     $1]	if $text =~ /\G (\[)		/gcx;
+	    return ['ELINK_C',     $1]	if $text =~ /\G (\])		/gcx;
+	    #	    'TEMPLATE'
+	    return ['TEMPL_O',     $1] 	if $text =~ /\G	(\{\{)		/gcx;
+	    return ['TEMPL_C',     $1] 	if $text =~ /\G	(\}\})		/gcx;
 	    #	    'HTML'
 	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcx;
 	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\s*\w*>)	/gcx;
@@ -165,6 +171,11 @@ sub parse {
 sub rendertext {
     #_render("|",1,@_);
     _render("" ,1,@_);
+}
+
+sub rendertextbar {
+    _render("|",1,@_);
+    #_render("" ,1,@_);
 }
 
 sub rendertokens {
@@ -260,7 +271,7 @@ sub _searchtextparser {
     return @stack;
 }
 
-sub _parseelink_simple {
+sub _parseelink_simple { # TODO
     return @_;
 }
  
@@ -324,14 +335,14 @@ sub _parseilink_simple {
 	} ; # ILINK_C =====END		
 	    # BAR ============
 	if ($tok->[0] eq 'BAR') {
-	    $firstbar=@returnstack if !$firstbar;	# before is ILINK_PAGE
+	    $firstbar=@returnstack if !$firstbar;	# before is ILINK_PAGE # TODO is this assumption true?
 	    $lastbar =@returnstack if  $firstbar;	# last is ILINK_COMMENT
 	    $tok->[0]='IGNORE';				# ignore BAR now please
 	    #say "first bar $firstbar, last bar $lastbar";
 	    push @returnstack, $tok;
 	    next;
 	}; # BAR ==========END
-	$tok->[0] = 'IGNORE';					#ignore all to end bracket... but rewrite on exit from link
+	$tok->[0] = 'IGNORE';				#ignore all to end bracket... but rewrite on exit from link
 	push @returnstack, $tok;
     }
     return @returnstack;
@@ -353,7 +364,7 @@ sub _parsetable_simple {
     return @returnstack;
 }
 
-sub _parseheading {
+sub _parseheading { # TODO
     return @_;
 }
 

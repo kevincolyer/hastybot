@@ -170,4 +170,21 @@ $expected=	qq{BODYTEXT|IGNORE|BODYTEXT|IGNORE};
 is( rendertokens(parse($test)) , $expected, "Tokenising - table - simple");
 print "\n";
 is( rendertext(parse($test)) , $test, "Tokenising - table - simple - rendering fidelity");
+
+print "\n";
+$test=		qq{http://www.ywambrussels.be [http://www.ywambrussels.be] [http://www.ywambrussels.be A great site!]};
+$expected=	qq{URL|WS|ELINK_O|URL|ELINK_C|WS|ELINK_O|URL|WS|BODYWORD|WS|BODYWORD|WS|BODYWORD|EXCLAMATION|ELINK_C};
+is( rendertokens( tokenise($test)), $expected, "External link and URL tokeniser");
+print "\n";
+is( rendertext( tokenise($test)), $test, "External link and URL tokeniser - rendering fidelity");
+
+### TODO more url tests here...
+
+print "\n";
+$test=		q{mailto:kevin@example.com [mailto://kevin@example.com] [mailto://kevin@example.com?subject=hello%20world! A great site!]};
+$expected=	qq{MAILTO|WS|ELINK_O|MAILTO|ELINK_C|WS|ELINK_O|MAILTO|WS|BODYWORD|WS|BODYWORD|WS|BODYWORD|EXCLAMATION|ELINK_C};
+is( rendertokens( tokenise($test)), $expected, "External link and mailto tokeniser");
+print "\n";
+is( rendertext( tokenise($test)), $test, "External link and mailto tokeniser - rendering fidelity");
+
 #rendertokens( MediaWikiParser::_parsetable_simple ( tokenise($test)));
