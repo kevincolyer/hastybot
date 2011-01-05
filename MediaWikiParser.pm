@@ -9,7 +9,7 @@ binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
 use Data::Dumper::Simple;
 #use Regexp::Common qw /URI/;
-use Carp;
+#use Carp;
 
 package MediaWikiParser;
  
@@ -28,6 +28,7 @@ sub tokenise {
     my $nowiki=0;
     my $htmlcom=0;
     my $heading=0;
+    my $headinglevel=0;
    # my $URI=qr/$RE{URI}{-keep}/;
     my $tokens = sub {
 	TOKEN: { 
@@ -74,7 +75,7 @@ sub tokenise {
 	    return ['WS', 	   $1]	if $text =~ /\G (\s)		/gcx;#seems to gobble newlines
 	    return ['BOLD',	   $1]  if $text =~ /\G (''')		/gcx;
 	    return ['ITALIC',	   $1]  if $text =~ /\G ('')		/gcx;
-	    return ['APOSTROPHY',  $1]  if $text =~ /\G (')^'		/gcx;
+	    return ['APOSTROPHY',  $1]  if $text =~ /\G (')		/gcx;
 	    # 	    'HEADING'
 	    return ['HEADING_O',   $1] 	if $text =~ /\G ^(=+)		/gcxm; #need m for multiline to enable anchors here...
 	    return ['HEADING_C',   $1] 	if $text =~ /\G (=+)		/gcx;
@@ -99,8 +100,9 @@ sub tokenise {
 	    #groups
 	    #redo TOKEN if 
 	    return undef;
-	} ;
+	}
     };
+
     my ($this, $last);
     $last="n/a";
     while (my $tok=$tokens->()) {
@@ -113,7 +115,7 @@ sub tokenise {
 	    else {$htmlcom=1} #$tok->[0] = 'HTMLCOM'
 	};
 	if ($tok->[0] eq 'HTMLCOM_C') {
-	    if ($nowiki or !$htmlcom) {$tok->[0] = 'UNKNOWN'}
+	    if ($nowiki or !$htmlcom) {$tok->[0] = 'IGNORE'}
 	    else {$htmlcom=0} #$tok->[0] = 'HTMLCOM'; 
 	};
 	#nowiki comments
@@ -122,32 +124,54 @@ sub tokenise {
 	    else {$nowiki=1} #$tok->[0] = 'NOWIKI';
 	};
 	if ($tok->[0] eq 'NOWIKI_C') {
-	    if (!$nowiki or $htmlcom) {$tok->[0] = 'UNKNOWN'}
+	    if (!$nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
 	    else {$nowiki=0} #$tok->[0] = 'NOWIKI';
 	};
-	#process links here and other nested items
-	if ($tok->[0] eq 'NL') {$heading=0;}; #reset heading on newline
-	if ($tok->[0] eq 'HEADING_O') {
-	    if ($heading) {die ("this can not happen - heading_o is always first!");}
-	    $heading = length ($tok->[1]);
-	    $tok->[0] = "H$heading";
-	};
-	if ($tok->[0] eq 'HEADING_C') {
-	    if (!$heading) {$tok->[0] = 'UNKNOWN'}
-	    else {
-		$heading=length($tok->[1]);
-		$tok->[0] = "H$heading";
-		$heading=0;
-	    }
-	};#TODO make a == heading = become a h1 and a = heading == h1 also! match and re-write. Perhaps peek?
-
-	#If in a comment - ignore the text
+	
+	# if in a comment - ignore the text
 	if ($nowiki+$htmlcom and $tok->[0] !~ /NOWIKI.*/ and $tok->[0] !~ /HTMLCOM.*/) {
 	    $tok->[0] = 'IGNORE';
 	}
-	#now comments are done we can get on with some other things and not worry about comments
-	#nowiki comments
-	#
+	# now comments are done we can get on with some other things and not worry about comments
+
+	#process HEADINGS 
+	if ($tok->[0] eq 'NL') {$headinglevel=0; $heading=0}; # reset heading on newline
+
+	if ($tok->[0] eq 'HEADING_O') { # heading OPEN
+	    if ($headinglevel) {die ("this can not happen - heading_o is always first!");}
+	    $headinglevel = length ($tok->[1]);
+	    $heading 	  = @stack; # stack size +1 will be the index of this item as not inserted into stack yet!
+	    $tok->[0]     = "H$headinglevel";
+	};
+
+	if ($tok->[0] eq 'HEADING_C') { # heading CLOSE
+	    if (!$headinglevel) {$tok->[0] = 'UNKNOWN'} # ignore close before open
+	    else {
+		my $closeheading=length($tok->[1]); 
+		if ($headinglevel>$closeheading) { # closeheading wins - add an ignore with = x diff after openheading
+		    my $tok2 = ['IGNORE','=' x ($headinglevel-$closeheading)];
+		    splice(@stack,$heading+1,0,$tok2); #hopefully add tok2 to just after the first heading
+		    $stack[$heading]->[0]= "H$closeheading";
+		    $stack[$heading]->[1]= "=" x $closeheading;
+		    $tok->[0]="H$closeheading";
+		}; 
+		if ($headinglevel<$closeheading) { # heading wins - add and ignore with = x diff after close heading - reset closeheading
+		    $last='IGNORE'; # we move ahead a token so trick optimiser...
+		    my $tok2 = [$last,'=' x ($closeheading-$headinglevel)];
+		    push @stack,$tok2; # push my difference token into stack before current token 
+		    $tok->[0]= "H$headinglevel";
+		    $tok->[1]= "=" x $headinglevel;
+		    
+		}; 
+		if ($closeheading==$headinglevel) { # the only other option...
+		    $tok->[0] = "H$closeheading";
+		    $headinglevel=0;
+		    $heading=0;
+		};
+	    }
+	};
+
+	# 
 	# some optimisation to reduce tokens
 	$this=$tok->[0];
 	warn "UNKOWN token encountered |".$tok->[1]."|" if $this eq 'UNKNOWN';
@@ -174,18 +198,22 @@ sub rendertext {
 }
 
 sub rendertextbar {
-    _render("|",1,@_);
+    $_=_render("|",1,@_);
     #_render("" ,1,@_);
+    say ;
+    return $_;
 }
 
 sub rendertokens {
-    _render("|",0,@_)
+    $_=_render("|",0,@_);
+    say ;
+    return $_;
 }
 sub _render {
     my $text;
     my ($join,$which,@stack) = @_;
     $text = join $join, map {  @{$_}[$which]  } @stack;
-    say $text;
+    #say $text;
     return $text;
 }
 
@@ -419,10 +447,12 @@ sub _simplify {
 	#warn Dumper $groups, @_;
 	my @returnstack;
 	while (my $tok=shift @_) {
-	    if (!exists $groups->{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN'}; 
-	    $tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
-	    $tok->[0]=$groups->{$tok->[0]}; # pass 2 choose which to ignore and which to keep
-	    push @returnstack, $tok; #and return the renamed token
+	    if ($tok->[0] !~ /H\d+/) { #headings are special - lets keep them... for now
+		if (!exists $groups->{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN'}; 
+		$tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
+		$tok->[0]=$groups->{$tok->[0]}; # pass 2 choose which to ignore and which to keep
+	    }
+	    push @returnstack, $tok;    # and return the renamed token
 	}
 	return @returnstack;
     };
