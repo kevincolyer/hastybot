@@ -181,7 +181,8 @@ $expected=	qq{URL|WS|ELINK_O|URL|ELINK_C|WS|ELINK_O|URL|WS|BODYWORD|WS|BODYWORD|
 is( rendertokens( tokenise($test)), $expected, "External link and URL tokeniser");
 print "\n";
 is( rendertext( tokenise($test)), $test, "External link and URL tokeniser - rendering fidelity");
-
+print "\n";
+say rendertokens( parse($test));
 ### TODO more url tests here...
 
 print "\n";
@@ -190,5 +191,3 @@ $expected=	qq{MAILTO|WS|ELINK_O|MAILTO|ELINK_C|WS|ELINK_O|MAILTO|WS|BODYWORD|WS|
 is( rendertokens( tokenise($test)), $expected, "External link and mailto tokeniser");
 print "\n";
 is( rendertext( tokenise($test)), $test, "External link and mailto tokeniser - rendering fidelity");
-
-#rendertokens( MediaWikiParser::_parsetable_simple ( tokenise($test)));

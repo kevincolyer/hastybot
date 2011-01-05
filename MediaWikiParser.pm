@@ -224,13 +224,14 @@ sub _searchtextparser {
     my %groups = (
 	MAILTO 		=> 'URL',      
 	HTTP 		=> 'URL',        
-	FTP 		=> 'URL',         
+	FTP 		=> 'URL', 
+	BAREURL		=> 'BAREURL', 		#for now otherwise url?
 	NOWIKI_O 	=> 'NOWIKI',    
 	NOWIKI_C 	=> 'NOWIKI',    
 	HTMLCOM_O 	=> 'HTMLCOM',   
 	HTMLCOM_C 	=> 'HTMLCOM',   
 
-	MAGICWORD 	=> 'IGNORE',  	 #in this case
+	MAGICWORD 	=> 'IGNORE',  	 	#in this case
 
 	BODYWORD 	=> 'BODYTEXT',    
 	BAR 		=> 'BODYTEXT',        
@@ -240,8 +241,8 @@ sub _searchtextparser {
 	EXCLAMATION 	=> 'BODYTEXT', 
 	NL 		=> 'BODYTEXT',          
 	WS 		=> 'BODYTEXT', 	   
-	BOLD 		=> 'IGNORE', 		  #in this case   
-	ITALIC 		=> 'IGNORE', 		  #in this case	   
+	BOLD 		=> 'IGNORE', 		#in this case   
+	ITALIC 		=> 'IGNORE', 		#in this case	   
 	APOSTROPHY 	=> 'BODYTEXT',  
 	HEADING_O 	=> 'HEADING', 
 	HEADING_C 	=> 'HEADING',  
@@ -250,14 +251,15 @@ sub _searchtextparser {
 	
 	ELINK_O		=> 'ELINK',     
 	ELINK_C 	=> 'ELINK',     
+	ELINKCOMMENT	=> 'ELINKCOMMENT',  	# for now otherwise ELINK
 	
 	TEMPL_O 	=> 'TEMPLATE',     
 	TEMPL_C 	=> 'TEMPLATE',     
 	
 	ILINK_O 	=> 'ILINK',     
 	ILINK_C 	=> 'ILINK',   
-	ILINK_PAGE	=> 'ILINK',
-	ILINK_COMMENT	=> 'ILINK',
+	ILINK_PAGE	=> 'ILINK',		# for now
+	ILINK_COMMENT	=> 'ILINK',		# for now
 	
 	HTML_O 		=> 'HTML',      
 	HTML_C 		=> 'HTML',      
@@ -289,7 +291,7 @@ sub _searchtextparser {
     # tables => ignore i.e. simple
     @stack=     _parsetable_simple(@stack);
     # headings - makeing sure they balance etc.
-    @stack=          _parseheading(@stack);
+    #@stack=          _parseheading(@stack); done in tokenise function!
 
     # optimise #1 - group tokens
     @stack=     _simplify(\%groups,@stack);
@@ -300,7 +302,66 @@ sub _searchtextparser {
 }
 
 sub _parseelink_simple { # TODO
-    return @_;
+    my @returnstack;
+    my $inelink=0;
+    my $elinkstart=0;
+    my $elinkurl = '';
+    my $elinkws=0;
+    my $elinkcomment='';
+    while (my $tok=shift @_) {
+	#if url not in elink then mark as bareurl or baremailto
+	#if in an elink then elink-url seek comment, seek white space... mark as elink-comment
+	if (!$inelink and ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO')) {
+		$tok->[0]='BARE'.$tok->[0];
+	}
+	if (!$inelink and $tok->[0] eq 'ELINK_O') {
+	    $elinkstart=@returnstack;
+	    $inelink=1;
+	    push @returnstack;
+	    next;
+	}
+	if (!$inelink and $tok->[0] eq 'ELINK_C') {
+	    $tok->[0] = 'IGNORE'; # must be a mistake - not in link and close tag
+	}
+
+	if ($inelink) {
+	    die "in an elink and found another elink open tag - don;t know what to do. :-(" if $tok->[0] eq 'ELINK_O';
+	    
+	    if ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO') {
+		$tok->[0] = 'ELINKCOMMENT' 	if $elinkurl ne '';
+		$elinkurl = $tok->[0] 		if $elinkurl eq '';
+	    }
+
+	    if ($tok->[0] eq 'WS') {
+		$elinkws=@returnstack 		if $elinkws==0;
+	    }
+	    if ($tok->[0] eq 'NL') {
+		#reset
+		for ($elinkstart..@returnstack) {
+		    $returnstack[$_]->[0]='IGNORE';
+		}
+		$elinkstart=0;
+		$inelink=0;
+		$elinkws=0;
+		$elinkurl='';
+		$elinkcomment='';
+	    }
+# 	    if ($tok->[0] ne 'ELINK_C' and $tok->[0] ne 'WS' and $tok->[0] ne 'URL' and $tok->[0] ne 'MAILTO') {
+# 		$tok->[0] = 'ELINKCOMMENT';
+# 	    }
+	    
+	    if ($tok->[0] eq 'ELINK_C') {
+		$elinkstart=0;
+		$elinkws=0;
+		$elinkurl='';
+		$elinkcomment='';
+		$inelink=0;
+		$tok->[0]='IGNORE';
+	    }
+	}
+	push @returnstack, $tok;
+    }
+    return @returnstack;
 }
  
 sub _parseilink_simple {
