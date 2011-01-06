@@ -14,6 +14,8 @@ say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
 use Test::More qw( no_plan ); #tests => 3;
 
+$MediaWikiParser::debug=0; # make loud
+
 my ($test,$expected);
 $test=	qq<==DTS==\n\n\nDTS is very cool. I like it. {{RatingBar}}>;
 $expected=	$test; #rendertokens(tokenise($test));
@@ -181,8 +183,8 @@ $expected=	qq{URL|WS|ELINK_O|URL|ELINK_C|WS|ELINK_O|URL|WS|BODYWORD|WS|BODYWORD|
 is( rendertokens( tokenise($test)), $expected, "External link and URL tokeniser");
 print "\n";
 is( rendertext( tokenise($test)), $test, "External link and URL tokeniser - rendering fidelity");
-print "\n";
-say rendertokens( parse($test));
+#print "\n";
+#say rendertokens( parse($test));
 ### TODO more url tests here...
 
 print "\n";
@@ -190,4 +192,4 @@ $test=		q{mailto:kevin@example.com [mailto://kevin@example.com] [mailto://kevin@
 $expected=	qq{MAILTO|WS|ELINK_O|MAILTO|ELINK_C|WS|ELINK_O|MAILTO|WS|BODYWORD|WS|BODYWORD|WS|BODYWORD|EXCLAMATION|ELINK_C};
 is( rendertokens( tokenise($test)), $expected, "External link and mailto tokeniser");
 print "\n";
-is( rendertext( tokenise($test)), $test, "External link and mailto tokeniser - rendering fidelity");
+is( rendertext( parse($test)), $test, "External link and mailto tokeniser - rendering fidelity");

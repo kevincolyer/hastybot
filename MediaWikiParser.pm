@@ -16,11 +16,14 @@ package MediaWikiParser;
 use Exporter;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
-our $VERSION     = 0.99;
+our $VERSION     = 1.00;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens);
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug);
 #our %EXPORT_TAGS = ( DEFAULT => [qw(&tokenise) ] );
+
+
+our $debug=0;
 
 sub tokenise {
     my ($text) = @_;
@@ -174,7 +177,7 @@ sub tokenise {
 	# 
 	# some optimisation to reduce tokens
 	$this=$tok->[0];
-	warn "UNKOWN token encountered |".$tok->[1]."|" if $this eq 'UNKNOWN';
+	warn "UNKOWN token encountered |".$tok->[1]."|" if ($this eq 'UNKNOWN' and $debug);
 	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' or $this eq 'WS')) {
 	    $stack[-1]->[1].=$tok->[1];
 	    next;
@@ -193,27 +196,26 @@ sub parse {
 }
 
 sub rendertext {
-    #_render("|",1,@_);
-    _render("" ,1,@_);
+    $_= _render("" ,1,@_);
+    say if $debug;
+    return $_;
 }
 
 sub rendertextbar {
     $_=_render("|",1,@_);
-    #_render("" ,1,@_);
-    say ;
+    say if $debug;
     return $_;
 }
 
 sub rendertokens {
     $_=_render("|",0,@_);
-    say ;
+    say if $debug;
     return $_;
 }
 sub _render {
     my $text;
     my ($join,$which,@stack) = @_;
     $text = join $join, map {  @{$_}[$which]  } @stack;
-    #say $text;
     return $text;
 }
 
@@ -291,7 +293,7 @@ sub _searchtextparser {
     # tables => ignore i.e. simple
     @stack=     _parsetable_simple(@stack);
     # headings - makeing sure they balance etc.
-    #@stack=          _parseheading(@stack); done in tokenise function!
+    # included in tokenise function!
 
     # optimise #1 - group tokens
     @stack=     _simplify(\%groups,@stack);
@@ -302,38 +304,42 @@ sub _searchtextparser {
 }
 
 sub _parseelink_simple { # TODO
+# bareurl or baremailto 
+# [url] or [mailto]
+# [url stuff...] or [mailto stuff...]
+# [ \n is ignore
+# no nesting of brackets
+# extra ] is ignore
     my @returnstack;
     my $inelink=0;
     my $elinkstart=0;
     my $elinkurl = '';
     my $elinkws=0;
-    my $elinkcomment='';
     while (my $tok=shift @_) {
 	#if url not in elink then mark as bareurl or baremailto
 	#if in an elink then elink-url seek comment, seek white space... mark as elink-comment
-	if (!$inelink and ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO')) {
-		$tok->[0]='BARE'.$tok->[0];
-	}
-	if (!$inelink and $tok->[0] eq 'ELINK_O') {
-	    $elinkstart=@returnstack;
-	    $inelink=1;
-	    push @returnstack;
+	if (!$inelink) { # NOT In an ELINK
+	    $tok->[0] = 'BARE'.$tok->[0] if ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO'); 
+	    $tok->[0] = 'IGNORE' 	 if  $tok->[0] eq 'ELINK_C';  # mistake - not in link and so ignore tag
+	    if ($tok->[0] eq 'ELINK_O') {
+		$elinkstart=@returnstack;
+		$inelink=1;
+	    }
+	    #say "not in elink: ",$tok->[0],$tok->[1];
+	    push @returnstack, $tok; # nothing to see move along please!
 	    next;
-	}
-	if (!$inelink and $tok->[0] eq 'ELINK_C') {
-	    $tok->[0] = 'IGNORE'; # must be a mistake - not in link and close tag
 	}
 
 	if ($inelink) {
 	    die "in an elink and found another elink open tag - don;t know what to do. :-(" if $tok->[0] eq 'ELINK_O';
 	    
 	    if ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO') {
-		$tok->[0] = 'ELINKCOMMENT' 	if $elinkurl ne '';
+		$tok->[0] = 'ELINKCOMMENT' 	if $elinkurl ne '';# multiple url's are comments...'
 		$elinkurl = $tok->[0] 		if $elinkurl eq '';
 	    }
 
 	    if ($tok->[0] eq 'WS') {
-		$elinkws=@returnstack 		if $elinkws==0;
+		$elinkws=@returnstack 		if $elinkws==0; # only record first ws seen...
 	    }
 	    if ($tok->[0] eq 'NL') {
 		#reset
@@ -344,23 +350,33 @@ sub _parseelink_simple { # TODO
 		$inelink=0;
 		$elinkws=0;
 		$elinkurl='';
-		$elinkcomment='';
 	    }
-# 	    if ($tok->[0] ne 'ELINK_C' and $tok->[0] ne 'WS' and $tok->[0] ne 'URL' and $tok->[0] ne 'MAILTO') {
-# 		$tok->[0] = 'ELINKCOMMENT';
-# 	    }
 	    
 	    if ($tok->[0] eq 'ELINK_C') {
+		if ($elinkws) {
+		    for ($elinkws+1..@returnstack-1) {
+			$returnstack[$_]->[0] = 'ELINKCOMMENT';
+		    }
+		}
+		$returnstack[$elinkstart]->[0] = 'IGNORE';
+		$returnstack[$elinkstart+1]->[0] = 'ELINK'.$returnstack[$elinkstart+1]->[0];
 		$elinkstart=0;
 		$elinkws=0;
 		$elinkurl='';
-		$elinkcomment='';
 		$inelink=0;
 		$tok->[0]='IGNORE';
 	    }
 	}
+	#say " in elink: ",$tok->[0],$tok->[1];
 	push @returnstack, $tok;
     }
+    if ($inelink) {
+	for ($elinkstart..@returnstack) {
+	    $returnstack[$_]->[0]='IGNORE';
+	}
+    }
+    #rendertokens(@returnstack);
+    #warn Dumper @returnstack;
     return @returnstack;
 }
  
@@ -453,10 +469,6 @@ sub _parsetable_simple {
     return @returnstack;
 }
 
-sub _parseheading { # TODO
-    return @_;
-}
-
 sub _parsetemplate_simple {
     my $templatedepth=0;
     my (@stack)=@_;
@@ -467,7 +479,8 @@ sub _parsetemplate_simple {
 	if ($this eq 'TEMPL_O') {
 	    $templatedepth++;
 	    push @returnstack, $tok;
-	    next};
+	    next
+	};
 	if ($this eq 'TEMPL_C') {
 	    if ($templatedepth==0) {   # ignore close template if no prev. matching
 		$tok->[0]='IGNORE'}
@@ -509,7 +522,10 @@ sub _simplify {
 	my @returnstack;
 	while (my $tok=shift @_) {
 	    if ($tok->[0] !~ /H\d+/) { #headings are special - lets keep them... for now
-		if (!exists $groups->{$tok->[0]}) {warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN"; $tok->[0]='UNKNOWN'}; 
+		if (!exists $groups->{$tok->[0]}) {
+		    $tok->[0]='UNKNOWN';
+		    warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
+		} 
 		$tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
 		$tok->[0]=$groups->{$tok->[0]}; # pass 2 choose which to ignore and which to keep
 	    }
