@@ -189,12 +189,7 @@ sub tokenise {
     return @stack;
 }
 
-
-sub parse {
-    #simple parser
-    return _searchtextparser(tokenise(@_));
-}
-
+###############################################################
 sub rendertext {
     $_= _render("" ,1,@_);
     say if $debug;
@@ -212,6 +207,7 @@ sub rendertokens {
     say if $debug;
     return $_;
 }
+
 sub _render {
     my $text;
     my ($join,$which,@stack) = @_;
@@ -219,9 +215,14 @@ sub _render {
     return $text;
 }
 
-sub _searchtextparser {
-    my (@stack) =@_; #recieve a list of tokens
+###############################################################
+sub parse {
+    #simple parser
+    return _testparser(tokenise(@_));
+}
     
+sub _testparser {
+    my (@stack) =@_; #recieve a list of tokens
     # groups for simplification... 
     my %groups = (
 	MAILTO 		=> 'URL',      
@@ -269,7 +270,7 @@ sub _searchtextparser {
 
 	UNKNOWN 	=> 'IGNORE',  
 	#
-	#used in pass 2
+	# PASS2...
 	BODYTEXT	=> 'BODYTEXT', 		# needed for pass 2
 	IGNORE 		=> 'IGNORE', 		# needed for pass2
 	HTML 		=> 'IGNORE',
@@ -283,33 +284,19 @@ sub _searchtextparser {
 	URL 		=> 'IGNORE',
     );
     # parse using a chain of sub parsers...
-
-    # templates => ignore i.e. simple
-    @stack=  _parsetemplate_simple(@stack);
-    # elink => ignore i.e. simple
+    @stack=  	_parsetemplate_simple(@stack);
     @stack=	_parseelink_simple(@stack);
-    # ilink => ignore i.e. simple
     @stack=     _parseilink_simple(@stack);
-    # tables => ignore i.e. simple
-    @stack=     _parsetable_simple(@stack);
-    # headings - makeing sure they balance etc.
-    # included in tokenise function!
-
-    # optimise #1 - group tokens
-    @stack=     _simplify(\%groups,@stack);
-    # optimise #2 - combine adjacant identical tokens
-    @stack=		 _optimise(@stack);
-    # and we are done...
-    return @stack;
+    @stack=    	_parsetable_simple(@stack);
+    
+    # optimise 	#1 - group tokens, two passes
+    @stack=     _simplify(\%groups,2,@stack);
+    # optimise 	#2 - combine adjacant identical tokens
+    @stack=	_reduce(@stack);
+    return 	@stack;
 }
 
-sub _parseelink_simple { # TODO
-# bareurl or baremailto 
-# [url] or [mailto]
-# [url stuff...] or [mailto stuff...]
-# [ \n is ignore
-# no nesting of brackets
-# extra ] is ignore
+sub _parseelink_simple { 
     my @returnstack;
     my $inelink=0;
     my $elinkstart=0;
@@ -484,16 +471,14 @@ sub _parsetemplate_simple {
 	if ($this eq 'TEMPL_C') {
 	    if ($templatedepth==0) {   # ignore close template if no prev. matching
 		$tok->[0]='IGNORE'}
-	    else {$templatedepth!=0;   # close if open
-		$templatedepth--;      # ascend a level
-	    }
+	    else { $templatedepth-- }      # close if open ascend a level
 	} elsif ($templatedepth!=0) {$tok->[0]='IGNORE';};
 	push @returnstack, $tok;
     };
     return @returnstack;
 }
 
-sub _optimise {
+sub _reduce {
     my (@stack)=@_;
     my @returnstack;
     #warn Dumper @stack;
@@ -518,16 +503,17 @@ sub _optimise {
 
 sub _simplify {
 	my $groups=shift;
-	#warn Dumper $groups, @_;
+	# warn Dumper $groups, @_;
+	my $passes=shift; # if 2 then 2 passes...
 	my @returnstack;
 	while (my $tok=shift @_) {
-	    if ($tok->[0] !~ /H\d+/) { #headings are special - lets keep them... for now
+	    if ($tok->[0] !~ /H\d+/) { #headings are special - lets keep them... for now... TODO
 		if (!exists $groups->{$tok->[0]}) {
 		    $tok->[0]='UNKNOWN';
 		    warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
 		} 
-		$tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
-		$tok->[0]=$groups->{$tok->[0]}; # pass 2 choose which to ignore and which to keep
+		$tok->[0]=$groups->{$tok->[0]}; 		# pass 1 groups tokens
+		$tok->[0]=$groups->{$tok->[0]} if $passes==2 ; 	# pass 2 increase grouping
 	    }
 	    push @returnstack, $tok;    # and return the renamed token
 	}
