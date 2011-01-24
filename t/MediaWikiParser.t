@@ -14,7 +14,7 @@ say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
 use Test::More qw( no_plan ); #tests => 3;
 
-$MediaWikiParser::debug=0; # make loud
+$MediaWikiParser::debug=1; # make loud
 
 my ($test,$expected);
 $test=	qq<==DTS==\n\n\nDTS is very cool. I like it. {{RatingBar}}>;

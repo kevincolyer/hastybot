@@ -54,10 +54,9 @@ sub tokenise {
 							(?:\/[^\#\s]+)?         # page - optional
 							(?:\#(?:\S*))?         # place - optional
 								)	/gcxi;
-	    #return ['FTP',         $1] 	if $text =~ /\G (ftp:\/\/|ftps:\/\/)	/gcxi;
-	    #	    'NOWIKI'
+
 	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
-	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/\s*nowiki>)	/igcx;
+	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/nowiki>)	/igcx;
 	    #       'HTMLCOM'
 	    return ['HTMLCOM_O',   $1] 	if $text =~ /\G	(<!--)		/gcx;
 	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
@@ -102,13 +101,14 @@ sub tokenise {
 	    return ['UNKNOWN',     $1] 	if $text =~ /\G (.)		/gcx;
 	    #groups
 	    #redo TOKEN if 
+	    #only if at then end... drop through... warn "Unmatched token! Something is wrong! at ",pos($text);
 	    return undef;
 	}
     };
 
     my ($this, $last);
     $last="n/a";
-    while (my $tok=$tokens->()) {
+    while (my $tok=$tokens->() ) {
 	# comments 
 	# opening and closing comments
 	# $nowiki $htmlcom
@@ -224,10 +224,11 @@ sub parse {
 sub _testparser {
     my (@stack) =@_; #recieve a list of tokens
     # groups for simplification... 
-    my %groups = (
+    my %o1 = (
 	MAILTO 		=> 'URL',      
 	HTTP 		=> 'URL',        
 	FTP 		=> 'URL', 
+	URL 		=> 'URL', 
 	BAREURL		=> 'BAREURL', 		#for now otherwise url?
 	NOWIKI_O 	=> 'NOWIKI',    
 	NOWIKI_C 	=> 'NOWIKI',    
@@ -269,6 +270,9 @@ sub _testparser {
 	HTML_SINGLE	=> 'HTML', 
 
 	UNKNOWN 	=> 'IGNORE',  
+	IGNORE 		=> 'IGNORE',
+    );
+    my %o2 = (
 	#
 	# PASS2...
 	BODYTEXT	=> 'BODYTEXT', 		# needed for pass 2
@@ -282,6 +286,7 @@ sub _testparser {
 	HTMLCOM 	=> 'IGNORE',
 	NOWIKI 		=> 'IGNORE',
 	URL 		=> 'IGNORE',
+	UNKNOWN 	=> 'IGNORE', 
     );
     # parse using a chain of sub parsers...
     @stack=  	_parsetemplate_simple(@stack);
@@ -290,7 +295,8 @@ sub _testparser {
     @stack=    	_parsetable_simple(@stack);
     
     # optimise 	#1 - group tokens, two passes
-    @stack=     _simplify(\%groups,2,@stack);
+    @stack=     _simplify(\%o1, @stack);
+    @stack=     _simplify(\%o2, @stack); #use second hash for second pass
     # optimise 	#2 - combine adjacant identical tokens
     @stack=	_reduce(@stack);
     return 	@stack;
@@ -326,8 +332,11 @@ sub _parseelink_simple {
 	    }
 
 	    if ($tok->[0] eq 'WS') {
-		$elinkws=@returnstack 		if $elinkws==0; # only record first ws seen...
+		if ($elinkws==0) {
+		    $elinkws=@returnstack; 	# only record first ws seen...
+		    $tok->[0] = 'IGNORE'; } 	# dont need the WS now...
 	    }
+
 	    if ($tok->[0] eq 'NL') {
 		#reset
 		for ($elinkstart..@returnstack) {
@@ -489,6 +498,7 @@ sub _reduce {
 	push @returnstack, $tok;
 	while ($tok=shift @stack) {
 	    $this=$tok->[0];
+	    #say "this:$this: last:$last:";
 	    if ($this eq $last) {
 		  $returnstack[-1]->[1].=$tok->[1];  
 		  next;
@@ -504,18 +514,16 @@ sub _reduce {
 sub _simplify {
 	my $groups=shift;
 	# warn Dumper $groups, @_;
-	my $passes=shift; # if 2 then 2 passes...
 	my @returnstack;
 	while (my $tok=shift @_) {
-	    if ($tok->[0] !~ /H\d+/) { #headings are special - lets keep them... for now... TODO
+	    if ($tok->[0] !~ /H\d+/) { 		#headings are special - lets keep them. for now TODO
 		if (!exists $groups->{$tok->[0]}) {
+		    say $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
 		    $tok->[0]='UNKNOWN';
-		    warn $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
 		} 
-		$tok->[0]=$groups->{$tok->[0]}; 		# pass 1 groups tokens
-		$tok->[0]=$groups->{$tok->[0]} if $passes==2 ; 	# pass 2 increase grouping
+		$tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
 	    }
-	    push @returnstack, $tok;    # and return the renamed token
+	    push @returnstack, $tok;   		# and return the renamed token
 	}
 	return @returnstack;
     };
