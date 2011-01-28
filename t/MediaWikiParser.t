@@ -8,59 +8,59 @@ use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 
 #use Titlecase qw(titlecase isanacronym ucfirstimproved possibleacronym);
-use MediaWikiParser qw(tokenise parse rendertext rendertokens);
+use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser);
 
 say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
 use Test::More qw( no_plan ); #tests => 3;
 
-$MediaWikiParser::debug=1; # make loud
+$MediaWikiParser::debug=0; # make loud
 
 my ($test,$expected);
 $test=	qq<==DTS==\n\n\nDTS is very cool. I like it. {{RatingBar}}>;
 $expected=	$test; #rendertokens(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - first test");
+is( rendertext(tokenise($test)) , $expected, "#01 Parsing and re-rendering Integrity Test - first test");
 
 print "\n";
 $test=	qq<blah blah's "blah" '''blah''' blah blah blah>;
 $expected=	$test; MediaWikiParser::rendertextbar(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - apostrophe");
+is( rendertext(tokenise($test)) , $expected, "#02 Parsing and re-rendering Integrity Test - apostrophe");
 
 print "\n";
 $test=	qq<blah [blahs blah] http://www.ywamkb.net blah blah blah blah>;
 $expected=	$test; #rendertokens(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - external links");
+is( rendertext(tokenise($test)) , $expected, "#03 Parsing and re-rendering Integrity Test - external links");
 
 print "\n";
 $test=	qq<blah [[blahs]] [[blah|blah blah [blah blah]]] blah blah>;
 $expected=	$test; #rendertokens(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - internal links");
+is( rendertext(tokenise($test)) , $expected, "#04 Parsing and re-rendering Integrity Test - internal links");
 
 print "\n";
 $test=	qq<blah blahs {{blah|blah{{blah}}}}blah blah>;
 $expected=	$test; #rendertokens(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - templates");
+is( rendertext(tokenise($test)) , $expected, "#05 Parsing and re-rendering Integrity Test - templates");
 
 print "\n";
 $test=	qq<blah blahs <nowiki> [[blah]] blah </nowiki> </ nowiki> blah>;
 $expected=	$test; #MediaWikiParser::rendertextbar(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - nowiki");
+is( rendertext(tokenise($test)) , $expected, "#06 Parsing and re-rendering Integrity Test - nowiki");
 
 print "\n";
 $test=	qq{blah <blah class="" > blah </ blah> blah </blah> blah};
 $expected=	$test; #rendertokens(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - html");
+is( rendertext(tokenise($test)) , $expected, "#07 Parsing and re-rendering Integrity Test - html");
 
 print "\n";
 $test=	qq{blah blah's '''''blah''''' ''blah'' '''blah''' blah};
 $expected=	$test; #rendertokens(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - html");
+is( rendertext(tokenise($test)) , $expected, "#08 Parsing and re-rendering Integrity Test - html");
 
 $test=	q{ftp://blah.blah __BLAH__ __blah__https://blah.blah.blah http://blah.blah.blah mailto:kevin@example.com}; #correct behaviour is for __blah__http... to render as body text.
 print "\n";
 $expected=	$test; #MediaWikiParser::rendertextbar(tokenise($test));
-is( rendertext(tokenise($test)) , $expected, "Parsing and re-rendering Integrity Test - html");
-is( rendertext(parse($test)) , $expected, "Parsing and re-rendering Integrity Test - html");
+is( rendertext(tokenise($test)) , $expected, "#09 Parsing and re-rendering Integrity Test - html");
+is( rendertext(parse($test)) , $expected, "#10 Parsing and re-rendering Integrity Test - html");
 # note UNKNOWN token warnings are to be EXPECTED as the run on url is supposed to fail...
 
 # tokenising tests
@@ -193,3 +193,60 @@ $expected=	qq{MAILTO|WS|ELINK_O|MAILTO|ELINK_C|WS|ELINK_O|MAILTO|WS|BODYWORD|WS|
 is( rendertokens( tokenise($test)), $expected, "External link and mailto tokeniser");
 print "\n";
 is( rendertext( parse($test)), $test, "External link and mailto tokeniser - rendering fidelity");
+
+print "========================================\n";
+#now for something more interesting - test of a heading parser...
+
+my %o1 = (
+    UNKNOWN 	=> 'IGNORE', #might always need this? 
+    BODYWORD 	=> 'BODYTEXT',    
+    BAR 	=> 'BODYTEXT',        
+    POINT 	=> 'BODYTEXT',       
+    COLON 	=> 'BODYTEXT',       
+    SEMICOLON 	=> 'BODYTEXT',   
+    EXCLAMATION => 'BODYTEXT', 
+    NL 		=> 'BODYTEXT',          
+    WS 		=> 'BODYTEXT', 	   
+    APOSTROPHY 	=> 'BODYTEXT',  
+
+    HEADING_O 	=> 'HEADING', 
+    HEADING_C 	=> 'HEADING',  
+
+# may not want these but here for now - ignored in pass2
+    ELINK_O	=> 'ELINK',     
+    ELINK_C 	=> 'ELINK',  
+    ELINKMAILTO	=> 'ELINKMAIILTO',
+    ELINKCOMMENT=> 'ELINKCOMMENT',  	# for now otherwise ELINK
+    ILINK_O 	=> 'ILINK',     
+    ILINK_C 	=> 'ILINK',   
+    ILINK_PAGE	=> 'ILINK',		# for now
+    ILINK_COMMENT=> 'ILINK',		# for now
+
+);
+my %o2 = (
+    #
+    # PASS2...
+    BODYTEXT	=> 'IGNORE', 		# needed for pass 2
+    IGNORE 	=> 'IGNORE', 		# needed for pass2
+    HTML 	=> 'IGNORE',
+    TEMPLATE	=> 'IGNORE',
+    ILINK 	=> 'IGNORE',
+    ELINK 	=> 'IGNORE',
+    TABLE 	=> 'IGNORE',
+    HEADING 	=> 'HEADING',
+    HTMLCOM 	=> 'IGNORE',
+    NOWIKI 	=> 'IGNORE',
+    URL 	=> 'IGNORE',
+    UNKNOWN 	=> 'IGNORE', 
+);
+
+$test=		qq<==hello{{[[dts]]world  {{hello}}}} }}==>;
+my @stack = customparser($test, \%o1, \%o2);
+is(rendertext(@stack), $test, "#32 Testing customparser for headings...");
+
+open FILE, "<howtowriteinwiki.dat";
+$test = do { local $/; <FILE> };
+
+@stack = customparser($test, \%o1, \%o2); 
+say MediaWikiParser::rendertokensbartext(@stack);
+

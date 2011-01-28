@@ -1,0 +1,342 @@
+{{Quickstart|Help:Writing Good Articles}}
+=Emphasis on Text=
+'''Bold''' text
+
+To embolden text put three apostrophes around the <nowiki>'''word'''</nowiki>
+
+'''word'''
+ 
+
+'''Italicise text'''
+
+To put a word in italics place two apostrophes around the <nowiki>''word''</nowiki>
+
+''word''
+
+Of ''course'' to do '''both''' you need five <nowiki>'''''apostrophes'''''</nowiki>
+
+'''''apostrophes'''''
+----
+To make a '''Heading''', surround a title with equal signs
+
+ =Example Heading level 1=
+ ==Example Heading level 2==
+ ===Example Heading level 3===
+ ====Example Heading level 4====
+=Example Heading level 1=
+==Example Heading level 2==
+===Example Heading level 3===
+====Example Heading level 4====
+=Lists=
+'''Bullet lists''' -- these are made using 1 -- 3 asterisks without spacing at the beginning. 
+
+If you want to put sub-bullet points (with 2 asterisks) then there needs to be no gap between the lines.
+ * bullet list
+ * bullet list
+ ** second level bullets
+ ** second level bullets
+ * bullet list
+* bullet list
+* bullet list
+** second level bullets
+** second level bullets
+* bullet list
+-----
+'''Number lists''' are use the # and are made in a similar way
+ # item 1
+ # item 2
+ ## item 2 subitem 1
+ ## item 2 subitem 3
+ # item 3
+ #* item 3 bullet point
+
+# item 1
+# item 2
+## item 2 subitem 1
+## item 2 subitem 3
+# item 3
+#* item 3 bullet point
+-----
+'''Definitions''' are made by stating a line with a ;
+
+Definitions explained by indenting the line with a : (Note general indentations are made with 1 or more colons)
+ ;YWAM
+ :Youth With a Mission
+ :Youth With a Meeting
+ :Young Women after Men
+ 
+ :General indentation
+ :::Deeply indented
+ For quotes that require double indentations you surround the quote with <nowiki><blockquote></nowiki>blah... blah<nowiki></blockquote></nowiki>
+
+;YWAM
+:Youth With a Mission
+:Youth With a Meeting
+:Young Women after Men
+
+
+:General indentation
+:::Deeply indented
+
+<blockquote>blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah blah </blockquote>
+=Creating New Pages and Linking to Existing Pages=
+==Link to another Page==
+'''Links''': To make a '''link to another page''' you use two square brackets <nowiki>[[Cheese]]</nowiki> = [[Cheese]]
+
+But if you want to write something else but still link to the page cheese use the vertical bar:-
+
+Here is a list of my <nowiki>[[Cheese|favourite cheeses]]</nowiki> = [[Cheese|favourite cheeses]]
+
+== Link to a section on another page ==
+
+Square brackets followed by the page name, followed by hash, followed by the exact title of the section heading. This links to the Section Heading. Can make it neater using a pipe.
+
+e.g. <nowiki>[[Mapping Dialogue Introduction#Our Assignment|Our Assignment]]</nowiki> produces [[Mapping Dialogue Introduction#Our Assignment|Our Assignment]]
+
+And this Wikipedia page has the answers: http://en.wikipedia.org/wiki/Help:Wiki_markup#Links_and_URLs
+
+==Link to a Category==
+
+How to link to a category
+
+To add a link to a category in an article (as opposed to adding the article to a category) create a normal link to the category page but place a colon at the beginning of it, just after the double opening square brackets. Here's an example:
+
+To provide a link to [[:Category:Communication]] (just like this one), add the text <nowiki>[[:Category:Communication]]</nowiki> where you want the link to appear. (Notice the extra colon at the beginning of the link).
+
+I found this on wikipedia http://en.wikipedia.org/wiki/Wikipedia:Tip_of_the_day/August_23,_2006
+
+==New Page==
+To '''make a new page''' simply create a new link in an existing page. It will turn out red when you save the page. All red links when clicked on take you straight to the editing page.
+
+What should you consider putting on each new page you create?
+*at the top of the page a list of categories that this page would fit into
+*the code for a PDF file if you are going to include that
+*links to other pages
+*the code to turn the Table of Contents on or off for your page
+
+==Change Page Name==
+To '''change a page name''' simply 'move' it and write the new name.
+
+==Redirect==
+Remove all content for a page except for:
+<nowiki>#REDIRECT [[Page to Redirect to]]</nowiki>
+
+==Link to Another Website==
+To make a '''link to another website''' you can use the following notification
+<pre>www.ywam.org (doesn't work)
+http://www.ywam.org
+[http://www.ywam.org]
+[http://www.ywam.org YWAM's International Home Page]</pre>
+www.ywam.org 
+
+http://www.ywam.org
+
+[http://www.ywam.org]
+
+[http://www.ywam.org YWAM's International Home Page]
+
+==Categories (tags)==
+'''Categories''' are a great way of "tagging" your article to ensure it will be grouped automatically by the wiki software on the [[Special:Categories]] page. To make a category enter <nowiki>[[Category:ACategoryName]]</nowiki> anywhere in your document (by convention at the bottom as that is where the category bar appears, but anywhere will do). 
+
+If you create a new category the category bar will have a red link, click to edit as normal. Add some explanatory text. Save the page. The wiki software adds an alphabetical index underneath automatically. On a Category page any category tags you add will create a sub-category level for you.
+ <nowiki>[[Category:Help]]</nowiki> - see category panel below for the example here.
+
+'''CATEGORIES''' are the best way to group related subjects in the Knowledgebase as the software will always keep track of them for you.
+[[Category:help]]
+==ISBN's==
+When you refer to another book, why not find the ISBN. Simply writing <nowiki>ISBN 123456789</nowiki> will give a clickable link to a page that has links to several internet bookshops on it to the page of your reference. Try it: ISBN 123456789
+==Citations or References==
+
+If you want to add citations into footnotes or footnote in general then you use the following tag <nowiki><ref></nowiki>This is a reference and will appear in a footnote<nowiki></ref></nowiki>. At the end of your text place a <nowiki><references/></nowiki> tag and the reference will appear there. Usually the end of a document.
+
+I like using footnotes <ref>"The Guy thinks he is a Comic. Laugh"</ref>
+
+Most parents say that children do not like to eat their greens <ref>p1234, ''"Stating the blinding Obvious"'', Justin I. T. Fortheloot, WePublishRubbish Press, 2006</ref>
+
+<references/>
+
+More detail can be found at the [http://www.mediawiki.org/wiki/Extension:Cite/Cite.php Cite.php extension page].
+
+== Citations of Bible References ==
+
+There is a feature available that creates nice links to [http://www.biblegateway.com Bible Gateway].
+
+ Usage:
+ <nowiki>&lt;bible&gt;John 3:16&lt;/bible&gt;</nowiki>
+ Produces this: <bible>John 3:16</bible>. Nice eh? 
+ NOTE: please user <nowiki>{{Bible|John 3:16}}</nowiki> now unless needing special version as below)
+
+If you want a bible other than the default of Today's New International Version you indicate this inside the first <nowiki>&lt;bible&gt;</nowiki> tag
+
+ <nowiki>&lt;bible ver="msg"&gt;John 3:16&lt;/bible&gt;</nowiki> gives <bible ver="msg">John 3:16</bible> 
+
+List of Bible versions supported:
+
+* niv-us: New International Version (American English)
+* niv: New International Version (British English)
+* nasb: New American Standard Bible
+* esv: English Standard Version
+* tniv: Today's New International Version
+* msg: The Message
+* nlt: New Living Translation
+* kjv: King James Version
+* av: Authorised Version (KJV)
+* cev: Contemporary English Version
+* nkjv: New King James Version
+* lsg: Louis Segond (French)
+
+(If your favourite version is not there and your know the Bible Gateway version number then put that in the quotes e.g. ver="71". If you use a version a lot ask your friendly administrator ([[User:Kevin|Kev-The-Hasty]]) to add an abbreviation for it to the list above)
+
+=Images=
+==Upload Images==
+Use the Upload file to post an image to the site. Please make sure you have rights to do this. You can use these [[Help:How To Find Images|image search engines]] to find something.
+==Adding an Image to a Page==
+Use the <nowiki>[[Image:Lightbulb.png|thumb|right|Description]]</nowiki> markup. There are so many options it merits reading the [http://www.mediawiki.org/wiki/Help:Images detailed help file] for some terribly complex options
+[[Image:Lightbulb.png|thumb|right|Description]]
+
+For other media use: <nowiki>[[Media:OYBPD.PDF|Description]]</nowiki> Use for all files other than picture files (JPG, PNG, GIF, SVG) But see '''Media Template''' below too
+
+eg. [[Media:OYBPD.PDF|Description]] 
+
+Pictures are good. try to keep the picture size to less than 100K. You can also load up sounds files in the OGG format. 
+
+'''MICROSOFT FILE FORMATS''' Please do not upload! These are proprietary and are not open formats. Convert DOC, XLS, PPT to PDF's to upload them or preferably download a free copy of [http://www.openoffice.org OpenOffice] open your Microsoft files, convert to PDF with the built in functions or save the files as the ISO standard office document formats: ODT (text documents), ODS (spreadsheets) or ODP (presentations). 
+==Galleries==
+You can make a Gallery with the following code:
+<pre><gallery>
+File:Example.jpg|Item 1
+File:Example.jpg|a link to [[Help:Contents]]
+File:Example.jpg
+File:Example.jpg
+File:Example.jpg| ''italic caption''
+File:Example.jpg|on page "{{PAGENAME}}"
+</gallery></pre>
+
+== How to Delete an image ==
+
+Ask one of the Administrators.
+
+==PDF's==
+We know you will want to upload PDF's so here is how to make lovely links like the one below. Upload your PDF as normal. Take a note of the file name and them use the special template below. The file-name goes after the PDF and vertical bar bit.
+
+ For PDF there is a special template to make it look prettier so use:
+ <nowiki>{{pdf|OYBPD.PDF|Description}}</nowiki>. Your pdf's filename goes in place of the OYBPD.PDF bit here)
+{{pdf|OYBPD.PDF|Description}}
+
+==Media Templates==
+
+You may also be interested in the following templates:
+
+ <nowiki>{{odt|text document.odt|Openoffice.org Text document}}</nowiki>
+ <nowiki>{{odp|presentation document.odp|Openoffice.org Presentation (like powerpoint)}}</nowiki>
+ <nowiki>{{ogg|Sound File.ogg|A sound file in the open OGG format (like mp3 but better)}}</nowiki>
+ <nowiki>{{file|any other file.odt|any file}}</nowiki> NOTE use the above first!
+
+{{odt|Speaker_Evaluation_Form.odt|Openoffice.org Text document}}
+
+{{odp|Speaker_Evaluation_Form.odt|Openoffice.org Presentation (like powerpoint)}}
+
+{{ogg|Speaker_Evaluation_Form.odt|A sound file in the open OGG format (like mp3 but better)}}
+
+{{file|Speaker_Evaluation_Form.odt|any file}}
+
+=Embedding Video clips=
+First: '''upload your file''' to a site of your choice. Currently supported Sites are:
+* dailymotion
+* funnyordie
+* googlevideo
+* sevenload
+* revver
+* youtube
+
+Depending on the site you use, you may need to '''convert your file''' into the appropriate format first (e.g. not all sites take .mov-Videos, or your video is currently 3 GB big). The preferred format is often indicated, otherwise take MPEG-4. Play with the Quality parameter to get a balance of size & quality (MPEG: mainly quantizer influences this)
+
+'''Free Video converters:'''
+* [http://www.koyotesoft.com/indexEn.html Free Video Converter]
+* [http://fixounet.free.fr/avidemux/ Avidemux]
+
+
+(Note: Both google and youtube have the option of uploading multiple videos at once.)
+
+You can now embed the video with the following syntax.
+
+ <nowiki>{{#ev:googlevideo|000000000}}</nowiki> where 000000000 is the reference for the video
+ Replace googlevideo with one of dailymotion, funnyordie, googlevideo, sevenload, revver, youtube
+ depending on which service you are using.
+
+e.g. this code <nowiki>{{#ev:youtube|MCcXLV6s7vQ}}</nowiki> produces this:
+{{#ev:youtube|MCcXLV6s7vQ}}
+
+=Advanced=
+==Turning off the wiki markup==
+There are a couple of ways of turning off the wiki markup
+* Putting a space before a line
+ * Putting a space before a line
+ * adding the <nowiki><nowiki></nowiki>'''something'''</nowiki> around something
+* Surrounding a block of text with <nowiki><pre></nowiki>... <nowiki></pre></nowiki> tags
+<pre>
+* Putting a space before a line
+ * Putting a space before a line
+* adding the <nowiki>'''something'''</nowiki> around something
+* Surrounding a block of text with <nowiki><pre></nowiki>... <nowiki></pre></nowiki> tags
+</pre>
+
+==Tables==
+This code will produce the example below. Note each cell is on its own line.
+<pre>
+{| class="wikitable"
+! A1
+! B1
+! C1
+|- 
+! A2
+| B2
+| C2
+|-
+! A3
+| B3
+| C3
+|}
+</pre>
+
+{| class="wikitable"
+! A1
+! B1
+! C1
+|- 
+! A2
+| B2
+| C2
+|-
+! A3
+| B3
+| C3
+|}
+
+For advanced tables try this link: http://www.mediawiki.org/wiki/Help:Tables#Colspan.3D.222.22
+==Templates and Inclusion==
+Entering a page name in double curly braces like this: <nowiki>{{rename}}</nowiki> puts the contents of a template page into the current page. In this case it is [[Template:rename]]
+
+{{rename}}
+
+Templates are really simple to make and really useful but it took me a while to work them out. I found this page very helpful as the place to start: [http://en.wikipedia.org/wiki/Help:A_quick_guide_to_templates A quick guide to templates]
+
+And I've found this page useful: [http://www.knowledgethoughts.com/wiki/Mediawiki_templates Make templates simply] [[User:Steve|steve]] 14:22, 27 January 2011 (UTC)
+
+Help:A_quick_guide_to_template
+----
+'''Inclusion'''
+To include other articles in your own use this markup: <nowiki>{{:Multiplication}}</nowiki>. If you put a colon in before the page name it looks in the main wiki not the Template for the page. e.g. the text below is directly drawn in from the Article on Multiplication.
+
+The [[Multiplication]] article is included in between the lines below.
+----
+{{:Multiplication}}
+----
+
+==Table of Contents==
+If you want a table of contents like at the top of this page, or if you want one but want it somewhere else on the page, or if you have one and want to turn it off, then:
+
+At the current status of the wiki markup language, having at least '''four headers''' on a page triggers the TOC to appear in front of the first header (or after introductory sections). Putting <pre>__TOC__</pre> anywhere forces the TOC to appear at that point (instead of just before the first header). Putting <pre>__NOTOC__</pre> anywhere forces the TOC to disappear.
+----
+
+{{Quickstart|Help:Writing Good Articles}}

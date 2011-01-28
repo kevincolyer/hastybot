@@ -19,7 +19,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 1.00;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug);
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug customparser);
 #our %EXPORT_TAGS = ( DEFAULT => [qw(&tokenise) ] );
 
 
@@ -208,6 +208,14 @@ sub rendertokens {
     return $_;
 }
 
+sub rendertokensbartext {
+    use Kpctools q<snippet>;
+    my (@stack, $text);
+    @stack=@_;
+    $text = join "|\n", map {  @{$_}[0]." |".snippet( @{$_}[1] , 60)  } @stack;
+    return $text;
+}
+
 sub _render {
     my $text;
     my ($join,$which,@stack) = @_;
@@ -218,18 +226,42 @@ sub _render {
 ###############################################################
 sub parse {
     #simple parser
-    return _testparser(tokenise(@_));
+    #return _testparser(tokenise(@_));
+    return _testparser(@_);
 }
     
+sub customparser {
+    my ($wikitext,$o1,$o2)=@_;
+    #warn Dumper ($wikitext,$o1,$o2) if $debug;
+
+    my @stack=tokenise($wikitext);
+    # parse using a chain of sub parsers...
+    @stack=  	_parsetemplate_simple(@stack);
+    @stack=	_parseelink_simple(@stack);
+    @stack=     _parseilink_simple(@stack);
+    @stack=    	_parsetable_simple(@stack);
+    
+    # optimise 	#1 - group tokens, two passes
+    @stack=     _simplify($o1, @stack);
+    @stack=     _simplify($o2, @stack); #use second hash for second pass
+    # optimise 	#2 - combine adjacant identical tokens
+    @stack=	_reduce(@stack);
+    #sanity check
+    die "Rendering comparison of parsed wikitext failed - critical error. Stoping." if rendertext(@stack) ne $wikitext;
+    return 	@stack;
+ 
+}
+
 sub _testparser {
-    my (@stack) =@_; #recieve a list of tokens
     # groups for simplification... 
     my %o1 = (
-	MAILTO 		=> 'URL',      
+	MAILTO 		=> 'MAILTO',      
 	HTTP 		=> 'URL',        
 	FTP 		=> 'URL', 
 	URL 		=> 'URL', 
 	BAREURL		=> 'BAREURL', 		#for now otherwise url?
+	BAREMAILTO	=> 'BAREMAILTO',
+
 	NOWIKI_O 	=> 'NOWIKI',    
 	NOWIKI_C 	=> 'NOWIKI',    
 	HTMLCOM_O 	=> 'HTMLCOM',   
@@ -245,16 +277,18 @@ sub _testparser {
 	EXCLAMATION 	=> 'BODYTEXT', 
 	NL 		=> 'BODYTEXT',          
 	WS 		=> 'BODYTEXT', 	   
+	APOSTROPHY 	=> 'BODYTEXT',  
+
 	BOLD 		=> 'IGNORE', 		#in this case   
 	ITALIC 		=> 'IGNORE', 		#in this case	   
-	APOSTROPHY 	=> 'BODYTEXT',  
 	HEADING_O 	=> 'HEADING', 
 	HEADING_C 	=> 'HEADING',  
 	TABLE_O 	=> 'TABLE',     
 	TABLE_C		=> 'TABLE', 	   
 	
 	ELINK_O		=> 'ELINK',     
-	ELINK_C 	=> 'ELINK',     
+	ELINK_C 	=> 'ELINK',  
+	ELINKMAILTO	=> 'ELINKMAIILTO',
 	ELINKCOMMENT	=> 'ELINKCOMMENT',  	# for now otherwise ELINK
 	
 	TEMPL_O 	=> 'TEMPLATE',     
@@ -288,18 +322,8 @@ sub _testparser {
 	URL 		=> 'IGNORE',
 	UNKNOWN 	=> 'IGNORE', 
     );
-    # parse using a chain of sub parsers...
-    @stack=  	_parsetemplate_simple(@stack);
-    @stack=	_parseelink_simple(@stack);
-    @stack=     _parseilink_simple(@stack);
-    @stack=    	_parsetable_simple(@stack);
     
-    # optimise 	#1 - group tokens, two passes
-    @stack=     _simplify(\%o1, @stack);
-    @stack=     _simplify(\%o2, @stack); #use second hash for second pass
-    # optimise 	#2 - combine adjacant identical tokens
-    @stack=	_reduce(@stack);
-    return 	@stack;
+    return customparser(@_, \%o1, \%o2);
 }
 
 sub _parseelink_simple { 
