@@ -19,8 +19,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 1.00;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug customparser);
-#our %EXPORT_TAGS = ( DEFAULT => [qw(&tokenise) ] );
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug customparser flatten reduce);
 
 
 our $debug=0;
@@ -28,11 +27,12 @@ our $debug=0;
 sub tokenise {
     my ($text) = @_;
     my @stack ;
-    my $nowiki=0;
-    my $htmlcom=0;
-    my $heading=0;
+    my $state_nowiki=0;
+    my $state_htmlcom=0;
+    my @state_html; # state variable is a stack... perhaps we need a stack here too?
+    my $state_heading=0;
     my $headinglevel=0;
-   # my $URI=qr/$RE{URI}{-keep}/;
+
     my $tokens = sub {
 	TOKEN: { 
 	    #	    'URL'
@@ -49,10 +49,10 @@ sub tokenise {
 	    return ['URL',         $1] 	if $text =~ /\G (
 							(?:http|https|ftp)
 							(?:\:\/\/)  
-							(?:[^\:\/\s\]]+)         # server
+							(?:[^\:\/\s\]]+)        # server
 							(?:\:\d+)?              # port - optional
 							(?:\/[^\#\s]+)?         # page - optional
-							(?:\#(?:\S*))?         # place - optional
+							(?:\#(?:\S*))?          # place - optional
 								)	/gcxi;
 
 	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
@@ -93,6 +93,9 @@ sub tokenise {
 	    #	    'TEMPLATE'
 	    return ['TEMPL_O',     $1] 	if $text =~ /\G	(\{\{)		/gcx;
 	    return ['TEMPL_C',     $1] 	if $text =~ /\G	(\}\})		/gcx;
+
+	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>)		/igcx;
+	    return ['PRE_C',       $1] 	if $text =~ /\G	(<\/pre>)	/igcx;  
 	    #	    'HTML'
 	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcx;
 	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\s*\w*>)	/gcx;
@@ -111,39 +114,43 @@ sub tokenise {
     while (my $tok=$tokens->() ) {
 	# comments 
 	# opening and closing comments
-	# $nowiki $htmlcom
+	# $state_nowiki $state_htmlcom
 	# htmlcomments
 	if ($tok->[0] eq 'HTMLCOM_O') {
-	    if ($nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$htmlcom=1; $tok->[0] = 'IGNORE';} 
+	    if ($state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
+	    else {$state_htmlcom=1; $tok->[0] = 'IGNORE';} 
 	};
 	if ($tok->[0] eq 'HTMLCOM_C') {
-	    if ($nowiki or !$htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$htmlcom=0; $tok->[0] = 'IGNORE';}  
+	    if ($state_nowiki or !$state_htmlcom) {$tok->[0] = 'IGNORE'}
+	    else {$state_htmlcom=0; $tok->[0] = 'IGNORE';}  
 	};
 	#nowiki comments
 	if ($tok->[0] eq 'NOWIKI_O') {
-	    if ($nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$nowiki=1; $tok->[0] = 'IGNORE';} 
+	    if ($state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
+	    else {$state_nowiki=1; $tok->[0] = 'IGNORE';} 
 	};
 	if ($tok->[0] eq 'NOWIKI_C') {
-	    if (!$nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$nowiki=0; $tok->[0] = 'IGNORE';}
+	    if (!$state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
+	    else {$state_nowiki=0; $tok->[0] = 'IGNORE';}
 	};
-	
+
 	# if in a comment - ignore the text
-	if ($nowiki+$htmlcom and $tok->[0] !~ /NOWIKI.*/ and $tok->[0] !~ /HTMLCOM.*/) {
+	if ($state_nowiki+$state_htmlcom and $tok->[0] !~ /NOWIKI.*/ and $tok->[0] !~ /HTMLCOM.*/) {
 	    $tok->[0] = 'IGNORE';
 	}
+
 	# now comments are done we can get on with some other things and not worry about comments
 
-	#process HEADINGS 
-	if ($tok->[0] eq 'NL') {$headinglevel=0; $heading=0}; # reset heading on newline
+	# TODO - inside html....
+	# HTML_BODY	=> 'IGNORE',
+
+	# process HEADINGS 
+	if ($tok->[0] eq 'NL') {$headinglevel=0; $state_heading=0}; # reset heading on newline
 
 	if ($tok->[0] eq 'HEADING_O') { # heading OPEN
 	    if ($headinglevel) {die ("this can not happen - heading_o is always first!");}
 	    $headinglevel = length ($tok->[1]);
-	    $heading 	  = @stack; # stack size +1 will be the index of this item as not inserted into stack yet!
+	    $state_heading 	  = @stack; # stack size +1 will be the index of this item as not inserted into stack yet!
 	    $tok->[0]     = "H$headinglevel";
 	};
 
@@ -153,9 +160,9 @@ sub tokenise {
 		my $closeheading=length($tok->[1]); 
 		if ($headinglevel>$closeheading) { # closeheading wins - add an ignore with = x diff after openheading
 		    my $tok2 = ['IGNORE','=' x ($headinglevel-$closeheading)];
-		    splice(@stack,$heading+1,0,$tok2); #hopefully add tok2 to just after the first heading
-		    $stack[$heading]->[0]= "H$closeheading";
-		    $stack[$heading]->[1]= "=" x $closeheading;
+		    splice(@stack,$state_heading+1,0,$tok2); #hopefully add tok2 to just after the first heading
+		    $stack[$state_heading]->[0]= "H$closeheading";
+		    $stack[$state_heading]->[1]= "=" x $closeheading;
 		    $tok->[0]="H$closeheading";
 		}; 
 		if ($headinglevel<$closeheading) { # heading wins - add and ignore with = x diff after close heading - reset closeheading
@@ -171,20 +178,20 @@ sub tokenise {
 		    $tok->[0] = "H$closeheading";
 		};
 		# cut out the heading, replace with arrayref and tok h3 etc.
-		my @snip= splice (@stack, $heading);
+		my @snip= splice (@stack, $state_heading);
 		#warn Dumper @snip;
 		# ignore opening tag and closing semantic meaning no longer neaded
 		$snip[0]->[0] = 'IGNORE';
 		$tok->[0] = 'IGNORE';
 		push @snip, $tok; # put closing tag on too i.e. currently processing one
 		#warn Dumper @snip;
-		$stack[$heading]->[1]= \@snip;			# add array ref to stack
-		$stack[$heading]->[0] = "H$closeheading";	# give it a meaningful name
+		$stack[$state_heading]->[1]= \@snip;			# add array ref to stack
+		$stack[$state_heading]->[0] = "H$closeheading";	# give it a meaningful name
 		#warn Dumper @stack;
 		# done
 		$headinglevel=0;
 		$last='IGNORE';
-		$heading=0;
+		$state_heading=0;
 		
 		next; # we've added to stack so now restart the loop.
 	    }
@@ -237,7 +244,7 @@ sub rendertokensbartext {
 	    $text.="\n"; # show the tokens are a group.
 	} else {
 	    $len= " " x ( 20-length( $tok->[0] ) );
-	    $text.=$tok->[0].$len.snippet( $tok->[1] , 60);
+	    $text.=$tok->[0].$len.$tok->[1];#.snippet( $tok->[1] , 60);
 	}
     }
     return $text;
@@ -282,7 +289,7 @@ sub customparser {
     @stack=     _simplify($o1, @stack);
     @stack=     _simplify($o2, @stack); #use second hash for second pass
     # optimise 	#2 - combine adjacant identical tokens
-    @stack=	_reduce(@stack);
+    @stack=	reduce(@stack);
     #sanity check
     die "Rendering comparison of parsed wikitext failed - critical error. Stopping." if rendertext(@stack) ne $wikitext;
     return 	@stack;
@@ -342,6 +349,9 @@ sub _testparser {
 	ILINK_PAGE	=> 'ILINK',		# for now
 	ILINK_COMMENT	=> 'ILINK',		# for now
 	
+	
+	PRE_O 		=> 'IGNORE',      
+	PRE_C 		=> 'IGNORE',      
 	HTML_O 		=> 'HTML',      
 	HTML_C 		=> 'HTML',      
 	HTML_SINGLE	=> 'HTML', 
@@ -577,7 +587,7 @@ sub _parsetemplate_simple {
     return @returnstack;
 }
 
-sub _reduce {
+sub reduce {
     my (@stack)=@_;
     my @returnstack;
 #     warn Dumper @stack;
@@ -588,7 +598,7 @@ sub _reduce {
 	my $last=$tok->[0];
 # 	say "$last:".$tok->[1];  
 	if (ref($tok->[1]) eq 'ARRAY') {
-	    @{ $tok->[1] } =_reduce( @{ $tok->[1] } ); #dereference and 
+	    @{ $tok->[1] } =reduce( @{ $tok->[1] } ); #dereference and 
 # 	    say "recurse...";
 	    $last="ARRAYREF";
 	};
@@ -601,7 +611,7 @@ sub _reduce {
 # 	    say "$last:".$tok->[1], ref($tok->[1]);
 # 	    say "this:$this: last:$last:";
 	    if (ref($tok->[1]) eq 'ARRAY') {	# if ref then descend
-		@{ $tok->[1] } =_reduce( @{ $tok->[1] } ); # dereference and recurse
+		@{ $tok->[1] } =reduce( @{ $tok->[1] } ); # dereference and recurse
 # 		say "recurse 2";
 		$last="ARRAYREF";
 	    };
@@ -619,36 +629,51 @@ sub _reduce {
 #    say "Reduction not needed - stack length ", @stack;
 #     warn Dumper @stack;
     if (ref($stack[0]->[1]) eq 'ARRAY') {	# if ref then descend
-		    @{ $stack[0]->[1] } =_reduce( @{ $stack[0]->[1] } ); # dereference and recurse
+		    @{ $stack[0]->[1] } =reduce( @{ $stack[0]->[1] } ); # dereference and recurse
     }
 #     warn Dumper @stack;
     return @stack;
 }
 
 sub _simplify {
-	my $groups=shift;
-	#warn Dumper  $groups;
-	$groups->{UNKNOWN} ||= 'UNKNOWN'; # a little sanity check - prevents undefs in stack that are hard to trace due to spelling mistakes!
-	my @returnstack;
-	while (my $tok=shift @_) {
-	    #say "processing ".$tok->[0];
-	    if ( !exists $groups->{$tok->[0]} ) {
-		say $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
-		$tok->[0]='UNKNOWN';
-	    } 
-	    $tok->[0]=$groups->{$tok->[0]}; # use hash to simplify
-	    #if contains a ref - recurse into it...
-	    if ( ref( $tok->[1] ) eq 'ARRAY')  {
-		#say "descending to simplify array ref...";
-		@{ $tok->[1] } = _simplify( $groups , @{ $tok->[1] } ) ; # dereference and recurse
-		#say "coming back up";
-		#warn Dumper $tok;
-	    }
+    my $groups=shift;
+    #warn Dumper  $groups;
+    $groups->{UNKNOWN} ||= 'UNKNOWN'; # a little sanity check - prevents undefs in stack that are hard to trace due to spelling mistakes!
+    my @returnstack;
+    while (my $tok=shift @_) {
+	#say "processing ".$tok->[0];
+	if ( !exists $groups->{$tok->[0]} ) {
+	    say $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
+	    $tok->[0]='UNKNOWN';
+	} 
+	$tok->[0]=$groups->{$tok->[0]}; # use hash to simplify
+	#if contains a ref - recurse into it...
+	if ( ref( $tok->[1] ) eq 'ARRAY')  {
+	    #say "descending to simplify array ref...";
+	    @{ $tok->[1] } = _simplify( $groups , @{ $tok->[1] } ) ; # dereference and recurse
+	    #say "coming back up";
 	    #warn Dumper $tok;
-	    #say "   processed to ".$tok->[0];
-	    push @returnstack, $tok;   		# and return the renamed token
 	}
-	#warn Dumper @returnstack;
-	return @returnstack;
-    };
+	#warn Dumper $tok;
+	#say "   processed to ".$tok->[0];
+	push @returnstack, $tok;   		# and return the renamed token
+    }
+    #warn Dumper @returnstack;
+    return @returnstack;
+};
+
+sub flatten {
+    my (@stack) = @_;
+    my @returnstack;
+    while (my $tok = shift @stack) {
+	if ( ref( $tok->[1] ) eq 'ARRAY' ) {
+	    push @returnstack, [ $tok->[0],"" ];		# push marker token and empty string
+	    push @returnstack, flatten( @{$tok->[1]} );# deref and recurse
+	    next;
+	}
+    push @returnstack, $tok;
+    }
+    return @returnstack;
+};
+
 1;

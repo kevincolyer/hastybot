@@ -8,7 +8,7 @@ use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 
 #use Titlecase qw(titlecase isanacronym ucfirstimproved possibleacronym);
-use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser);
+use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten reduce);
 
 say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
@@ -71,7 +71,7 @@ is( rendertext(parse($test)) , $expected, "#10 Parsing and re-rendering Integrit
 ##*HTMLCOM|IGNORE|HTMLCOM
 print "\n";
 $test=		qq{<!-- [[dts]] -->};
-$expected=	qq{HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE}; #HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#11 Tokenising - html comments");
 
 # <nowiki>[[DTS]]<!--showme</nowiki>-->
@@ -79,7 +79,7 @@ is( rendertokens(tokenise($test)) , $expected, "#11 Tokenising - html comments")
 ##*NOWIKI|IGNORE|NOWIKI|BODYWORD
 print "\n";
 $test=		qq{<nowiki>[[DTS]]<!--showme</nowiki>-->};
-$expected=	qq{NOWIKI_O|IGNORE|NOWIKI_C|IGNORE}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE}; #NOWIKI_O|IGNORE|NOWIKI_C|IGNORE}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#12 Tokenising - NOWIKI comments");
 
 # <nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>
@@ -87,7 +87,7 @@ is( rendertokens(tokenise($test)) , $expected, "#12 Tokenising - NOWIKI comments
 ##*NOWIKI|IGNORE|NOWIKI|UNKNOWN|NOWIKI|NOWIKI
 print "\n";
 $test=		qq{<nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>};
-$expected=	qq{NOWIKI_O|IGNORE|NOWIKI_C|IGNORE|NOWIKI_O|NOWIKI_C}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE}; #NOWIKI_O|IGNORE|NOWIKI_C|IGNORE|NOWIKI_O|NOWIKI_C}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#13 Tokenising - NOWIKI comments");
 
 # <!--[[DTS]]<nowiki>[[DTS]]Insert non-formatted text here</nowiki>-->
@@ -95,7 +95,7 @@ is( rendertokens(tokenise($test)) , $expected, "#13 Tokenising - NOWIKI comments
 ##*HTMLCOM|IGNORE|HTMLCOM
 print "\n";
 $test=		qq{<!--[[DTS]]<nowiki>[[DTS]]Insert non-formatted text here</nowiki>-->};
-$expected=	qq{HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE}; #HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#14 Tokenising - html comments");
 
 # <!--<nowiki>Insert non-formatted text here--></nowiki>
@@ -103,7 +103,7 @@ is( rendertokens(tokenise($test)) , $expected, "#14 Tokenising - html comments")
 ##*IGNORE|NOWIKI_C
 print "\n";
 $test=		qq{<!-- [[dts]] -->};
-$expected=	qq{HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE}; #HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#15 Tokenising - html comments");
 
 print "\n";
@@ -217,8 +217,12 @@ my %o1 = (
     H5		=> 'H5',
     H6		=> 'H6',
 
+	MAGICWORD 	=> 'IGNORE',
+	PRE_O 		=> 'IGNORE',      
+	PRE_C 		=> 'IGNORE',      
 	HTML_O 		=> 'IGNORE',      
-	HTML_C 		=> 'IGNORE',      
+	HTML_C 		=> 'IGNORE',  
+	HTML_BODY	=> 'IGNORE',
 	HTML_SINGLE	=> 'IGNORE', 
 
 # may not want these but here for now - ignored in pass2
@@ -229,7 +233,7 @@ my %o1 = (
     ILINK_O 	=> 'ILINK',     
     ILINK_C 	=> 'ILINK',   
     ILINK_PAGE	=> 'ILINK',		# for now
-    ILINK_COMMENT=> 'ILINK',		# for now
+    ILINK_COMMENT=> 'BODYTEXT',		# for now
 
 );
 my %o2 = (
@@ -259,7 +263,7 @@ my %o2 = (
 $test=		qq<==hello {{ignore this}} world, how are you?==>;
 $expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE>;
 my @stack = 	customparser($test, \%o1, \%o2);
-	\is	(rendertokens(@stack), $expected, "#32 Testing customparser for headings...");
+	is	(rendertokens(@stack), $expected, "#32 Testing customparser for headings...");
 
 $test=		qq<This is some '''bold''' text\n== hello horld ==\n== hello '''bold''' world==>;
 $expected=	qq<BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
@@ -270,8 +274,53 @@ say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
 @stack = customparser($test, \%o1, \%o2); 
+my @stack2 =@stack;
 
-say MediaWikiParser::rendertokensbartext(@stack);
+say MediaWikiParser::rendertokensbartext( parseheadingtext( @stack ) );
 
+$test=		qq<== hello __NOTOC__ world ==\n== hello '''bold''' world==>;
+$expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
+@stack = 	customparser($test, \%o1, \%o2);
+	is	(rendertokens(@stack), $expected, "#34 Testing customparser for headings 3...");
+say rendertokens  MediaWikiParser::flatten( @stack ) ;
+say MediaWikiParser::rendertokensbartext( @stack );
+	is	(rendertext(flatten(@stack)), $test, "#35 Testing customparser and flattern sub");
+	is	(rendertext(parseheadingtext(@stack)), $test, "#36 Rendering integrity checking parseheadingtext sub");
 
+sub parseheadingtext {
+    my (@stack) = @_ ;
+#     warn Dumper @stack;
+    # run a custom parser on text... output in stack
+    # convert nested heading bodytext to headingtext
+    # flatten
+    # return bit by bit
+    for (0..@stack-1) {
+# 	say $_;
+	my $tok= $stack[$_];
+# 	say $tok->[0],$tok->[1];
+	if ($tok->[0] =~ /H\d/) {
+	    map {  $_->[0] =~ s/BODYTEXT/HEADINGTEXT/ } @{ $tok->[1] };
+	    $tok->[0] = 'IGNORE';     # don't want heading number anymore 
+	}
+	$tok->[0] =~ s/BODYTEXT/IGNORE/ ; # no body text either outside of headings
+    }
+#     warn Dumper @stack;
+    @stack = reduce flatten @stack;
+    
+#     warn Dumper @stack;
+    return @stack;
+}
 
+sub make_parseheadingtext_iterator {
+    my (@stack) = parseheadingtext( @_ ) ; # process and flatten stack
+    return sub {
+	return undef if !@stack; # if nothing more return undef
+	return shift @stack; # otherwise return a token and reduce stack
+	}
+}
+
+my $iterator=make_parseheadingtext_iterator ( @stack2 );
+
+while ( my $tok = $iterator->() ) {
+    say "|".uc($tok->[1])."|" if $tok->[0] eq 'HEADINGTEXT';
+}
