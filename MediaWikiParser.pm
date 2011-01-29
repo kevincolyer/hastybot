@@ -115,20 +115,20 @@ sub tokenise {
 	# htmlcomments
 	if ($tok->[0] eq 'HTMLCOM_O') {
 	    if ($nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$htmlcom=1} #$tok->[0] = 'HTMLCOM'
+	    else {$htmlcom=1; $tok->[0] = 'IGNORE';} 
 	};
 	if ($tok->[0] eq 'HTMLCOM_C') {
 	    if ($nowiki or !$htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$htmlcom=0} #$tok->[0] = 'HTMLCOM'; 
+	    else {$htmlcom=0; $tok->[0] = 'IGNORE';}  
 	};
 	#nowiki comments
 	if ($tok->[0] eq 'NOWIKI_O') {
 	    if ($nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$nowiki=1} #$tok->[0] = 'NOWIKI';
+	    else {$nowiki=1; $tok->[0] = 'IGNORE';} 
 	};
 	if ($tok->[0] eq 'NOWIKI_C') {
 	    if (!$nowiki or $htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$nowiki=0} #$tok->[0] = 'NOWIKI';
+	    else {$nowiki=0; $tok->[0] = 'IGNORE';}
 	};
 	
 	# if in a comment - ignore the text
@@ -580,12 +580,16 @@ sub _parsetemplate_simple {
 sub _reduce {
     my (@stack)=@_;
     my @returnstack;
-    #warn Dumper @stack;
-    if (length @stack >1) {
+#     warn Dumper @stack;
+#     my $leng =@stack;
+#     say $leng;
+    if (@stack >1) {
 	my $tok= shift @stack;
 	my $last=$tok->[0];
+# 	say "$last:".$tok->[1];  
 	if (ref($tok->[1]) eq 'ARRAY') {
-	    @{ $tok->[1] } =_reduce( @{ $tok->[1] } ); #dereference and recurse...
+	    @{ $tok->[1] } =_reduce( @{ $tok->[1] } ); #dereference and 
+# 	    say "recurse...";
 	    $last="ARRAYREF";
 	};
 	my $this;
@@ -594,29 +598,30 @@ sub _reduce {
 	push @returnstack, $tok;
 	while ($tok=shift @stack) {
 	    $this=$tok->[0];
-	    #say "this:$this: last:$last:";
-	    if ($this eq $last) {
-		if (ref($tok->[1]) eq 'ARRAY') {	# if ref then descend
-		    @{ $tok->[1] } =_reduce( @{ $tok->[1] } ); # dereference and recurse
-		    $last="ARRAYREF";
-		} else {  
-		    $returnstack[$#returnstack]->[1].=$tok->[1];  # don't merge array refs.
-		    #say $returnstack[$#returnstack]->[0]." merging...".$returnstack[$#returnstack]->[1];
-		    next;
-		}
-	    }
+# 	    say "$last:".$tok->[1], ref($tok->[1]);
+# 	    say "this:$this: last:$last:";
+	    if (ref($tok->[1]) eq 'ARRAY') {	# if ref then descend
+		@{ $tok->[1] } =_reduce( @{ $tok->[1] } ); # dereference and recurse
+# 		say "recurse 2";
+		$last="ARRAYREF";
+	    };
+	    if ($this eq $last and $last ne "ARRAYREF") {
+		$returnstack[-1]->[1].=$tok->[1];  # don't merge array refs.
+# 		say $returnstack[$#returnstack]->[0]." merging..." 
+		next;
+	    };
 	push @returnstack, $tok;
 # 	warn Dumper $tok;
 	$last=$this;
 	};
 	return @returnstack;
     }
-    #say "Reduction not needed - stack length ", @stack;
-    #warn Dumper @stack;
+#    say "Reduction not needed - stack length ", @stack;
+#     warn Dumper @stack;
     if (ref($stack[0]->[1]) eq 'ARRAY') {	# if ref then descend
 		    @{ $stack[0]->[1] } =_reduce( @{ $stack[0]->[1] } ); # dereference and recurse
     }
-    #warn Dumper @stack;
+#     warn Dumper @stack;
     return @stack;
 }
 

@@ -217,6 +217,10 @@ my %o1 = (
     H5		=> 'H5',
     H6		=> 'H6',
 
+	HTML_O 		=> 'IGNORE',      
+	HTML_C 		=> 'IGNORE',      
+	HTML_SINGLE	=> 'IGNORE', 
+
 # may not want these but here for now - ignored in pass2
     ELINK_O	=> 'ELINK',     
     ELINK_C 	=> 'ELINK',  
@@ -253,17 +257,21 @@ my %o2 = (
 );
 
 $test=		qq<==hello {{ignore this}} world, how are you?==>;
-my @stack = customparser($test, \%o1, \%o2);
-is(rendertext(@stack), $test, "#32 Testing customparser for headings...");
-say MediaWikiParser::rendertokensbartext(@stack);
-# warn Dumper @stack;
-# say rendertext(@stack);
+$expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE>;
+my @stack = 	customparser($test, \%o1, \%o2);
+	\is	(rendertokens(@stack), $expected, "#32 Testing customparser for headings...");
+
+$test=		qq<This is some '''bold''' text\n== hello horld ==\n== hello '''bold''' world==>;
+$expected=	qq<BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
+@stack = 	customparser($test, \%o1, \%o2);
+	is	(rendertokens(@stack), $expected, "#33 Testing customparser for headings 2...");
+
 say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
-
 @stack = customparser($test, \%o1, \%o2); 
 
 say MediaWikiParser::rendertokensbartext(@stack);
-warn Dumper @stack;
+
+
 
