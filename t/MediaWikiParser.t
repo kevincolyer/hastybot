@@ -72,7 +72,7 @@ is( rendertext(parse($test)) , $expected, "#10 Parsing and re-rendering Integrit
 print "\n";
 $test=		qq{<!-- [[dts]] -->};
 $expected=	qq{HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
+is( rendertokens(tokenise($test)) , $expected, "#11 Tokenising - html comments");
 
 # <nowiki>[[DTS]]<!--showme</nowiki>-->
 ##[[DTS]]<!--showme-->
@@ -80,7 +80,7 @@ is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
 print "\n";
 $test=		qq{<nowiki>[[DTS]]<!--showme</nowiki>-->};
 $expected=	qq{NOWIKI_O|IGNORE|NOWIKI_C|IGNORE}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - NOWIKI comments");
+is( rendertokens(tokenise($test)) , $expected, "#12 Tokenising - NOWIKI comments");
 
 # <nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>
 ##[[DTS]]<!-- hello --></nowiki>
@@ -88,7 +88,7 @@ is( rendertokens(tokenise($test)) , $expected, "Tokenising - NOWIKI comments");
 print "\n";
 $test=		qq{<nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>};
 $expected=	qq{NOWIKI_O|IGNORE|NOWIKI_C|IGNORE|NOWIKI_O|NOWIKI_C}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - NOWIKI comments");
+is( rendertokens(tokenise($test)) , $expected, "#13 Tokenising - NOWIKI comments");
 
 # <!--[[DTS]]<nowiki>[[DTS]]Insert non-formatted text here</nowiki>-->
 #
@@ -96,7 +96,7 @@ is( rendertokens(tokenise($test)) , $expected, "Tokenising - NOWIKI comments");
 print "\n";
 $test=		qq{<!--[[DTS]]<nowiki>[[DTS]]Insert non-formatted text here</nowiki>-->};
 $expected=	qq{HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
+is( rendertokens(tokenise($test)) , $expected, "#14 Tokenising - html comments");
 
 # <!--<nowiki>Insert non-formatted text here--></nowiki>
 ##</nowiki>
@@ -104,34 +104,34 @@ is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
 print "\n";
 $test=		qq{<!-- [[dts]] -->};
 $expected=	qq{HTMLCOM_O|IGNORE|HTMLCOM_C}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - html comments");
+is( rendertokens(tokenise($test)) , $expected, "#15 Tokenising - html comments");
 
 print "\n";
 $test=		qq{hello\n\n\nworld\nhello world \n};
 $expected=	qq{BODYWORD|NL|BODYWORD|NL|BODYWORD|WS|BODYWORD|WS|NL}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - NEWLINES");
+is( rendertokens(tokenise($test)) , $expected, "#16 Tokenising - NEWLINES");
 
 print "\n";
 $test=		qq{   hello \n\n world   \n};
 $expected=	qq{WS|BODYWORD|WS|NL|WS|BODYWORD|WS|NL}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - Whitespace");
+is( rendertokens(tokenise($test)) , $expected, "#17 Tokenising - Whitespace");
 
 # === heading ===
 ##=== heading ===
 ##*H3|WS|BODYWORD|WS|H3
 print "\n";
 $test=		qq{=== heading ===};
-$expected=	qq{H3|WS|BODYWORD|WS|H3}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - balanced headings");
+$expected=	qq{H3|IGNORE|WS|BODYWORD|WS|IGNORE}; #rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "#18 Tokenising - balanced headings");
 
 # === heading ==\n== heading ===
 ##=== heading ==\n== heading ===
 ##*H2|UNKNOWN|WS|BODYWORD|WS|H2|NL|H2|WS|BODYWORD|WS|H2|UNKNOWN
 print "\n";
 $test=		qq{=== heading ==\n== heading ===};
-$expected=	qq{H2|IGNORE|WS|BODYWORD|WS|H2|NL|H2|WS|BODYWORD|WS|IGNORE|H2}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - unbalanced headings");
-is( rendertext(tokenise($test)) , $test, "Tokenising - unbalanced headings - rendering fidelity");
+$expected=	qq{H2|IGNORE|IGNORE|WS|BODYWORD|WS|IGNORE|NL|H2|IGNORE|WS|BODYWORD|WS|IGNORE|IGNORE}; #rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "#19 Tokenising - unbalanced headings");
+is( rendertext(tokenise($test)) , $test, "#20 Tokenising - unbalanced headings - rendering fidelity");
 
 #from mediawiki test: 
 # ===hello
@@ -146,8 +146,8 @@ is( rendertext(tokenise($test)) , $test, "Tokenising - unbalanced headings - ren
 ##*H3|WS|BODYWORD|NL|WS|UNKNOWN
 print "\n";
 $test=		qq{=== heading\n ===};
-$expected=	qq{H3|WS|BODYWORD|NL|WS|UNKNOWN}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "Tokenising - balanced headings");
+$expected=	qq{H3|WS|BODYWORD|NL|WS|IGNORE}; #rendertext(tokenise($test));
+is( rendertokens(tokenise($test)) , $expected, "#21 Tokenising - balanced headings");
 #ignore warning for unrecognised token UNKNOWN here.
 
 # [[DTS
@@ -157,10 +157,10 @@ is( rendertokens(tokenise($test)) , $expected, "Tokenising - balanced headings")
 ##*ILINK_O|BODYWORD|NL|ILINK_C
 say "Using SIMPLEPARSER...\n";
 $test=		qq<==hello{{[[dts]]world  {{hello}}}} }}==>;
-$expected=	qq{H2|BODYTEXT|IGNORE|BODYTEXT|IGNORE|H2};
-is( rendertokens(parse($test)) , $expected, "Tokenising - templates and optimising and simplifying");
+$expected=	qq{H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE};
+is( rendertokens(parse($test)) , $expected, "#22 Tokenising - templates and optimising and simplifying");
 print "\n";
-is( rendertext(parse($test)) , $test, "Tokenising and rendering fidelity");
+is( rendertext(parse($test)) , $test, "#23 Tokenising and rendering fidelity");
 
 print "\n";
 $test=		qq<[[hello]] [[this is a link|oh yes it is]] ]] [[\n]][[hello|world|hello]]>;
@@ -198,7 +198,8 @@ print "========================================\n";
 #now for something more interesting - test of a heading parser...
 
 my %o1 = (
-    UNKNOWN 	=> 'IGNORE', #might always need this? 
+    IGNORE 	=> 'IGNORE', #might always need this? 
+    UNKNOWN	=> 'BODYTEXT', #might always need this? 
     BODYWORD 	=> 'BODYTEXT',    
     BAR 	=> 'BODYTEXT',        
     POINT 	=> 'BODYTEXT',       
@@ -208,9 +209,13 @@ my %o1 = (
     NL 		=> 'BODYTEXT',          
     WS 		=> 'BODYTEXT', 	   
     APOSTROPHY 	=> 'BODYTEXT',  
-
-    HEADING_O 	=> 'HEADING', 
-    HEADING_C 	=> 'HEADING',  
+  
+    H1		=> 'H1',
+    H2		=> 'H2',
+    H3		=> 'H3',
+    H4		=> 'H4',
+    H5		=> 'H5',
+    H6		=> 'H6',
 
 # may not want these but here for now - ignored in pass2
     ELINK_O	=> 'ELINK',     
@@ -226,27 +231,39 @@ my %o1 = (
 my %o2 = (
     #
     # PASS2...
-    BODYTEXT	=> 'IGNORE', 		# needed for pass 2
     IGNORE 	=> 'IGNORE', 		# needed for pass2
+    UNKNOWN 	=> 'IGNORE', 
+
+    BODYTEXT	=> 'BODYTEXT', 		# needed for pass 2
     HTML 	=> 'IGNORE',
     TEMPLATE	=> 'IGNORE',
     ILINK 	=> 'IGNORE',
     ELINK 	=> 'IGNORE',
     TABLE 	=> 'IGNORE',
-    HEADING 	=> 'HEADING',
+
+    H1		=> 'H1',
+    H2		=> 'H2',
+    H3		=> 'H3',
+    H4		=> 'H4',
+    H5		=> 'H5',
+    H6		=> 'H6',
     HTMLCOM 	=> 'IGNORE',
     NOWIKI 	=> 'IGNORE',
     URL 	=> 'IGNORE',
-    UNKNOWN 	=> 'IGNORE', 
 );
 
-$test=		qq<==hello{{[[dts]]world  {{hello}}}} }}==>;
+$test=		qq<==hello {{ignore this}} world, how are you?==>;
 my @stack = customparser($test, \%o1, \%o2);
 is(rendertext(@stack), $test, "#32 Testing customparser for headings...");
-
+say MediaWikiParser::rendertokensbartext(@stack);
+# warn Dumper @stack;
+# say rendertext(@stack);
+say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
 
 @stack = customparser($test, \%o1, \%o2); 
+
 say MediaWikiParser::rendertokensbartext(@stack);
+warn Dumper @stack;
 

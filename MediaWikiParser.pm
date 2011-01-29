@@ -79,8 +79,8 @@ sub tokenise {
 	    return ['ITALIC',	   $1]  if $text =~ /\G ('')		/gcx;
 	    return ['APOSTROPHY',  $1]  if $text =~ /\G (')		/gcx;
 	    # 	    'HEADING'
-	    return ['HEADING_O',   $1] 	if $text =~ /\G ^(=+)		/gcxm; #need m for multiline to enable anchors here...
-	    return ['HEADING_C',   $1] 	if $text =~ /\G (=+)		/gcx;
+	    return ['HEADING_O',   $1] 	if $text =~ /\G ^(={1,6})	/gcxm; #need m for multiline to enable anchors here...
+	    return ['HEADING_C',   $1] 	if $text =~ /\G (={1,6})	/gcx;
 	    #BULLET
 	    #NUMBERLIST
 	    #DEFINITION
@@ -148,7 +148,7 @@ sub tokenise {
 	};
 
 	if ($tok->[0] eq 'HEADING_C') { # heading CLOSE
-	    if (!$headinglevel) {$tok->[0] = 'UNKNOWN'} # ignore close before open
+	    if (!$headinglevel) {$tok->[0] = 'IGNORE'} # ignore close before open
 	    else {
 		my $closeheading=length($tok->[1]); 
 		if ($headinglevel>$closeheading) { # closeheading wins - add an ignore with = x diff after openheading
@@ -164,13 +164,29 @@ sub tokenise {
 		    push @stack,$tok2; # push my difference token into stack before current token 
 		    $tok->[0]= "H$headinglevel";
 		    $tok->[1]= "=" x $headinglevel;
+		    $closeheading=$headinglevel;
 		    
 		}; 
 		if ($closeheading==$headinglevel) { # the only other option...
 		    $tok->[0] = "H$closeheading";
-		    $headinglevel=0;
-		    $heading=0;
 		};
+		# cut out the heading, replace with arrayref and tok h3 etc.
+		my @snip= splice (@stack, $heading);
+		#warn Dumper @snip;
+		# ignore opening tag and closing semantic meaning no longer neaded
+		$snip[0]->[0] = 'IGNORE';
+		$tok->[0] = 'IGNORE';
+		push @snip, $tok; # put closing tag on too i.e. currently processing one
+		#warn Dumper @snip;
+		$stack[$heading]->[1]= \@snip;			# add array ref to stack
+		$stack[$heading]->[0] = "H$closeheading";	# give it a meaningful name
+		#warn Dumper @stack;
+		# done
+		$headinglevel=0;
+		$last='IGNORE';
+		$heading=0;
+		
+		next; # we've added to stack so now restart the loop.
 	    }
 	};
 
@@ -210,16 +226,37 @@ sub rendertokens {
 
 sub rendertokensbartext {
     use Kpctools q<snippet>;
-    my (@stack, $text);
+    my (@stack, $text, $first, $len);
     @stack=@_;
-    $text = join "|\n", map {  @{$_}[0]." |".snippet( @{$_}[1] , 60)  } @stack;
+    $text="";
+    while (my $tok = shift @stack) {
+	$text.="\n" if $first++;
+	if (ref( $tok->[1] ) eq 'ARRAY') {
+	    $text.="\n".$tok->[0].":\n"; #because we want to see the token
+	    $text.=rendertokensbartext( @{ $tok->[1] } ); # recurse on dereferenced array
+	    $text.="\n"; # show the tokens are a group.
+	} else {
+	    $len= " " x ( 20-length( $tok->[0] ) );
+	    $text.=$tok->[0].$len.snippet( $tok->[1] , 60);
+	}
+    }
     return $text;
 }
 
 sub _render {
-    my $text;
+    my ($text, $first);
     my ($join,$which,@stack) = @_;
-    $text = join $join, map {  @{$_}[$which]  } @stack;
+    $text="";
+    while (my $tok = shift @stack) {
+	$text.=$join if $first++;
+	#warn Dumper $tok;
+	if (ref( $tok->[1] ) eq 'ARRAY') {
+	    $text.=$tok->[0].$join if $which==0; # if rendering tokens then we want to see the token of array ref
+	    $text.=_render( $join, $which, @{ $tok->[1] } ); # recurse using a dereferenced stack 
+	} else {
+	    $text.= $tok->[$which];
+	}
+    }
     return $text;
 }
 
@@ -240,14 +277,14 @@ sub customparser {
     @stack=	_parseelink_simple(@stack);
     @stack=     _parseilink_simple(@stack);
     @stack=    	_parsetable_simple(@stack);
-    
+    #warn Dumper @stack;
     # optimise 	#1 - group tokens, two passes
     @stack=     _simplify($o1, @stack);
     @stack=     _simplify($o2, @stack); #use second hash for second pass
     # optimise 	#2 - combine adjacant identical tokens
     @stack=	_reduce(@stack);
     #sanity check
-    die "Rendering comparison of parsed wikitext failed - critical error. Stoping." if rendertext(@stack) ne $wikitext;
+    die "Rendering comparison of parsed wikitext failed - critical error. Stopping." if rendertext(@stack) ne $wikitext;
     return 	@stack;
  
 }
@@ -283,6 +320,12 @@ sub _testparser {
 	ITALIC 		=> 'IGNORE', 		#in this case	   
 	HEADING_O 	=> 'HEADING', 
 	HEADING_C 	=> 'HEADING',  
+	H1		=> 'H1',
+	H2		=> 'H2',
+	H3		=> 'H3',
+	H4		=> 'H4',
+	H5		=> 'H5',
+	H6		=> 'H6',
 	TABLE_O 	=> 'TABLE',     
 	TABLE_C		=> 'TABLE', 	   
 	
@@ -317,6 +360,12 @@ sub _testparser {
 	ELINK 		=> 'IGNORE',
 	TABLE 		=> 'IGNORE',
 	HEADING 	=> 'IGNORE',
+	H1		=> 'H1',
+	H2		=> 'H2',
+	H3		=> 'H3',
+	H4		=> 'H4',
+	H5		=> 'H5',
+	H6		=> 'H6',
 	HTMLCOM 	=> 'IGNORE',
 	NOWIKI 		=> 'IGNORE',
 	URL 		=> 'IGNORE',
@@ -333,6 +382,10 @@ sub _parseelink_simple {
     my $elinkurl = '';
     my $elinkws=0;
     while (my $tok=shift @_) {
+	if ( ref( $tok->[1] ) eq 'ARRAY')  {
+		@{ $tok->[1] } = _parseelink_simple( @{ $tok->[1] } ) ; # dereference and recurse
+	}
+
 	#if url not in elink then mark as bareurl or baremailto
 	#if in an elink then elink-url seek comment, seek white space... mark as elink-comment
 	if (!$inelink) { # NOT In an ELINK
@@ -407,6 +460,10 @@ sub _parseilink_simple {
     my $lastbar=0;
     my @returnstack;
     while (my $tok=shift @_) {
+	if ( ref( $tok->[1] ) eq 'ARRAY')  {
+		@{ $tok->[1] } = _parseilink_simple( @{ $tok->[1] } ) ; # dereference and recurse
+	}
+
 	if ($inilink==0) { 					# if we are not in a link...
 	    if ($tok->[0] eq 'ILINK_C') {$tok->[0]='IGNORE'};   # if close before open ignore
 	    if ($tok->[0] eq 'ILINK_O') {			# mark opening of elink
@@ -477,6 +534,10 @@ sub _parsetable_simple {
     my @returnstack;
     my $intable=0;
     while (my $tok=shift @_) {
+		if ( ref( $tok->[1] ) eq 'ARRAY')  {
+		@{ $tok->[1] } = _parsetable_simple( @{ $tok->[1] } ) ; # dereference and recurse
+	}
+
 	if ($tok->[0] eq 'TABLE_C' and $intable) { # only if in table can we close
 		$intable--;
 	}
@@ -495,16 +556,21 @@ sub _parsetemplate_simple {
     my @returnstack;
     while (@stack) {
 	my $tok = shift @stack;
+	if ( ref( $tok->[1] ) eq 'ARRAY')  {
+	    @{ $tok->[1] } = _parsetemplate_simple( @{ $tok->[1] } ) ; # dereference and recurse
+	}
+
 	my $this=$tok->[0];
 	if ($this eq 'TEMPL_O') {
 	    $templatedepth++;
+	    $tok->[0]='IGNORE';
 	    push @returnstack, $tok;
 	    next
 	};
 	if ($this eq 'TEMPL_C') {
 	    if ($templatedepth==0) {   # ignore close template if no prev. matching
 		$tok->[0]='IGNORE'}
-	    else { $templatedepth-- }      # close if open ascend a level
+	    else { $templatedepth--; $tok->[0]='IGNORE'; }      # close if open ascend a level
 	} elsif ($templatedepth!=0) {$tok->[0]='IGNORE';};
 	push @returnstack, $tok;
     };
@@ -518,37 +584,66 @@ sub _reduce {
     if (length @stack >1) {
 	my $tok= shift @stack;
 	my $last=$tok->[0];
+	if (ref($tok->[1]) eq 'ARRAY') {
+	    @{ $tok->[1] } =_reduce( @{ $tok->[1] } ); #dereference and recurse...
+	    $last="ARRAYREF";
+	};
 	my $this;
+# 	say "Starting Reduction";
+# 	warn Dumper $tok;
 	push @returnstack, $tok;
 	while ($tok=shift @stack) {
 	    $this=$tok->[0];
 	    #say "this:$this: last:$last:";
 	    if ($this eq $last) {
-		  $returnstack[-1]->[1].=$tok->[1];  
-		  next;
+		if (ref($tok->[1]) eq 'ARRAY') {	# if ref then descend
+		    @{ $tok->[1] } =_reduce( @{ $tok->[1] } ); # dereference and recurse
+		    $last="ARRAYREF";
+		} else {  
+		    $returnstack[$#returnstack]->[1].=$tok->[1];  # don't merge array refs.
+		    #say $returnstack[$#returnstack]->[0]." merging...".$returnstack[$#returnstack]->[1];
+		    next;
+		}
 	    }
 	push @returnstack, $tok;
+# 	warn Dumper $tok;
 	$last=$this;
 	};
 	return @returnstack;
     }
+    #say "Reduction not needed - stack length ", @stack;
+    #warn Dumper @stack;
+    if (ref($stack[0]->[1]) eq 'ARRAY') {	# if ref then descend
+		    @{ $stack[0]->[1] } =_reduce( @{ $stack[0]->[1] } ); # dereference and recurse
+    }
+    #warn Dumper @stack;
     return @stack;
 }
 
 sub _simplify {
 	my $groups=shift;
-	# warn Dumper $groups, @_;
+	#warn Dumper  $groups;
+	$groups->{UNKNOWN} ||= 'UNKNOWN'; # a little sanity check - prevents undefs in stack that are hard to trace due to spelling mistakes!
 	my @returnstack;
 	while (my $tok=shift @_) {
-	    if ($tok->[0] !~ /H\d+/) { 		#headings are special - lets keep them. for now TODO
-		if (!exists $groups->{$tok->[0]}) {
-		    say $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
-		    $tok->[0]='UNKNOWN';
-		} 
-		$tok->[0]=$groups->{$tok->[0]}; # pass 1 groups tokens
+	    #say "processing ".$tok->[0];
+	    if ( !exists $groups->{$tok->[0]} ) {
+		say $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
+		$tok->[0]='UNKNOWN';
+	    } 
+	    $tok->[0]=$groups->{$tok->[0]}; # use hash to simplify
+	    #if contains a ref - recurse into it...
+	    if ( ref( $tok->[1] ) eq 'ARRAY')  {
+		#say "descending to simplify array ref...";
+		@{ $tok->[1] } = _simplify( $groups , @{ $tok->[1] } ) ; # dereference and recurse
+		#say "coming back up";
+		#warn Dumper $tok;
 	    }
+	    #warn Dumper $tok;
+	    #say "   processed to ".$tok->[0];
 	    push @returnstack, $tok;   		# and return the renamed token
 	}
+	#warn Dumper @returnstack;
 	return @returnstack;
     };
 1;
