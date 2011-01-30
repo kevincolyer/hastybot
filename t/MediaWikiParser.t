@@ -7,6 +7,8 @@ use Data::Dumper::Simple;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 
+use lib "/home/kevin/Dropbox/development/modules";
+
 #use Titlecase qw(titlecase isanacronym ucfirstimproved possibleacronym);
 use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten reduce);
 

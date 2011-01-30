@@ -10,6 +10,9 @@ use 5.10.0;
 use Test::More qw( no_plan ); #tests => 3;
 use Data::Dumper::Simple;
 use utf8;
+
+use lib "/home/kevin/Dropbox/development/modules";
+
 binmode STDOUT, ":encoding(UTF-8)";
 use Titlecase qw(titlecase isanacronym ucfirstimproved possibleacronym);
 

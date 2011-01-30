@@ -118,7 +118,7 @@ sub tokenise {
 	# htmlcomments
 	if ($tok->[0] eq 'HTMLCOM_O') {
 	    if ($state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$state_htmlcom=1; $tok->[0] = 'IGNORE';} 
+	    else {$state_htmlcom= 1; $tok->[0] = 'IGNORE';} 
 	};
 	if ($tok->[0] eq 'HTMLCOM_C') {
 	    if ($state_nowiki or !$state_htmlcom) {$tok->[0] = 'IGNORE'}
@@ -134,9 +134,9 @@ sub tokenise {
 	    else {$state_nowiki=0; $tok->[0] = 'IGNORE';}
 	};
 
-	# if in a comment - ignore the text
-	if ($state_nowiki+$state_htmlcom and $tok->[0] !~ /NOWIKI.*/ and $tok->[0] !~ /HTMLCOM.*/) {
-	    $tok->[0] = 'IGNORE';
+	# if in a comment - mark text as ignored... 
+	if ( $state_nowiki+$state_htmlcom ) { #removed below as redundent - unless I want the tags - prob not...
+	    $tok->[0] = 'IGNORE'; #and $tok->[0] !~ /NOWIKI.*/ and $tok->[0] !~ /HTMLCOM.*/
 	}
 
 	# now comments are done we can get on with some other things and not worry about comments
