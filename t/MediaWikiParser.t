@@ -124,7 +124,7 @@ is( rendertokens(tokenise($test)) , $expected, "#17 Tokenising - Whitespace");
 print "\n";
 $test=		qq{=== heading ===};
 $expected=	qq{H3|IGNORE|WS|BODYWORD|WS|IGNORE}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "#18 Tokenising - balanced headings");
+is( rendertokens(MediaWikiParser::_parseheading_simple(tokenise($test))) , $expected, "#18 Tokenising - balanced headings");
 
 # === heading ==\n== heading ===
 ##=== heading ==\n== heading ===
@@ -132,8 +132,8 @@ is( rendertokens(tokenise($test)) , $expected, "#18 Tokenising - balanced headin
 print "\n";
 $test=		qq{=== heading ==\n== heading ===};
 $expected=	qq{H2|IGNORE|IGNORE|WS|BODYWORD|WS|IGNORE|NL|H2|IGNORE|WS|BODYWORD|WS|IGNORE|IGNORE}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "#19 Tokenising - unbalanced headings");
-is( rendertext(tokenise($test)) , $test, "#20 Tokenising - unbalanced headings - rendering fidelity");
+is( rendertokens(MediaWikiParser::_parseheading_simple(tokenise($test))) , $expected, "#19 Tokenising - unbalanced headings");
+is( rendertext(MediaWikiParser::_parseheading_simple(tokenise($test))) , $test, "#20 Tokenising - unbalanced headings - rendering fidelity");
 
 #from mediawiki test: 
 # ===hello
@@ -149,7 +149,7 @@ is( rendertext(tokenise($test)) , $test, "#20 Tokenising - unbalanced headings -
 print "\n";
 $test=		qq{=== heading\n ===};
 $expected=	qq{H3|WS|BODYWORD|NL|WS|IGNORE}; #rendertext(tokenise($test));
-is( rendertokens(tokenise($test)) , $expected, "#21 Tokenising - balanced headings");
+is( rendertokens(MediaWikiParser::_parseheading_simple(tokenise($test))) , $expected, "#21 Tokenising - balanced headings");
 #ignore warning for unrecognised token UNKNOWN here.
 
 # [[DTS
@@ -278,14 +278,14 @@ $test = do { local $/; <FILE> };
 @stack = customparser($test, \%o1, \%o2); 
 my @stack2 =@stack;
 
-say MediaWikiParser::rendertokensbartext( parseheadingtext( @stack ) );
+# say MediaWikiParser::rendertokensbartext( parseheadingtext( @stack ) );
 
 $test=		qq<== hello __NOTOC__ world ==\n== hello '''bold''' world==>;
 $expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
 @stack = 	customparser($test, \%o1, \%o2);
 	is	(rendertokens(@stack), $expected, "#34 Testing customparser for headings 3...");
-say rendertokens  MediaWikiParser::flatten( @stack ) ;
-say MediaWikiParser::rendertokensbartext( @stack );
+# say rendertokens  MediaWikiParser::flatten( @stack ) ;
+# say MediaWikiParser::rendertokensbartext( @stack );
 	is	(rendertext(flatten(@stack)), $test, "#35 Testing customparser and flattern sub");
 	is	(rendertext(parseheadingtext(@stack)), $test, "#36 Rendering integrity checking parseheadingtext sub");
 

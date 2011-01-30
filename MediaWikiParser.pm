@@ -8,8 +8,8 @@ use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
 use Data::Dumper::Simple;
-#use Regexp::Common qw /URI/;
-#use Carp;
+
+use lib "/home/kevin/Dropbox/development/modules";
 
 package MediaWikiParser;
  
@@ -203,9 +203,10 @@ sub _render {
     my ($text, $first);
     my ($join,$which,@stack) = @_;
     $text="";
+#     warn Dumper @stack;
     while (my $tok = shift @stack) {
 	$text.=$join if $first++;
-	#warn Dumper $tok;
+# 	warn Dumper $tok;
 	if (ref( $tok->[1] ) eq 'ARRAY') {
 	    $text.=$tok->[0].$join if $which==0; # if rendering tokens then we want to see the token of array ref
 	    $text.=_render( $join, $which, @{ $tok->[1] } ); # recurse using a dereferenced stack 
@@ -224,26 +225,24 @@ sub parse {
 }
     
 sub customparser {
-    my ($wikitext,$o1,$o2)=@_;
-    #warn Dumper ($wikitext,$o1,$o2) if $debug;
-
-    my @stack=tokenise($wikitext);
+    my ($wikitext,$o1,$o2, @parsers)=@_;
+    my @stack=	tokenise($wikitext);
+ 
+    if (!@parsers) { @parsers = qw(_parseheading_simple _parsetemplate_simple _parseelink_simple _parseilink_simple _parsetable_simple) };
     # parse using a chain of sub parsers...
-    @stack=	_parseheading_simple(@stack);
-    @stack=  	_parsetemplate_simple(@stack);
-    @stack=	_parseelink_simple(@stack);
-    @stack=     _parseilink_simple(@stack);
-    @stack=    	_parsetable_simple(@stack);
-    #warn Dumper @stack;
+    no strict; # needed for below
+    map { @stack =  &$_(@stack) } @parsers; # &$_() creates a sub from the string value in $_
+    strict;
+
     # optimise 	#1 - group tokens, two passes
     @stack=     _simplify($o1, @stack);
-    @stack=     _simplify($o2, @stack); #use second hash for second pass
+    @stack=     _simplify($o2, @stack);
     # optimise 	#2 - combine adjacant identical tokens
     @stack=	reduce(@stack);
-    #sanity check
+
+    # sanity check
     die "Rendering comparison of parsed wikitext failed - critical error. Stopping." if rendertext(@stack) ne $wikitext;
-    return 	@stack;
- 
+    return @stack;
 }
 
 sub _testparser {
@@ -331,15 +330,19 @@ sub _testparser {
 	URL 		=> 'IGNORE',
 	UNKNOWN 	=> 'IGNORE', 
     );
-    
-    return customparser(@_, \%o1, \%o2);
+    my @parsers = qw(	_parseheading_simple 
+			_parsetemplate_simple 						_parseelink_simple 						_parseilink_simple 						_parsetable_simple	);
+    return customparser(@_, \%o1, \%o2, @parsers);
 }
 
 sub _parseheading_simple { 
     my @returnstack;
     my $state_heading=0;
     my $headinglevel=0;
+    my $last ='n/a';
+# warn Dumper @_;
     while (my $tok=shift @_) {
+# 	warn Dumper $tok;
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
 		@{ $tok->[1] } = _parseheading_simple( @{ $tok->[1] } ) ; # dereference and recurse
 	}
@@ -394,8 +397,9 @@ sub _parseheading_simple {
 		
 		next; # we've added to stack so now restart the loop.
 	    }
-	};
-
+	}
+	push @returnstack, $tok;
+    }
     #warn Dumper @returnstack;
     return @returnstack;
 }
