@@ -46,24 +46,24 @@ $test=		qq{an as at but by en for if in is it the to vs vs};
 $expected=	qq{An as at but by en for if in is it the to vs vs};
 is( titlecase($test), $expected, "Ignore little words test" ); #7
 
-$test=		qq{YWAM BRUssels DTS - it's the BEST of the dts'S: All YWAMers should do one.};
-$expected=	qq{YWAM Brussels DTS - It's the Best of the DTS's: All YWAMers Should Do One.}; # can't handle Dts's yet nor probably should!
+$test=		qq{YWAM BRUssels DTS - it's the BEST of the dts'S: All YWAMers should do one. };
+$expected=	qq{YWAM Brussels DTS - It's the Best of the DTS's: All YWAMers Should do One. }; # can't handle Dts's yet nor probably should!
 is(titlecase($test), $expected, "Acronym test"); #8
 
 $test=		qq{==ywam BRUssels dts: it's the BEST of the dts'S: All "YWAMers" should do one.==};
-$expected=	qq{==YWAM Brussels DTS: It's the Best of the DTS's: All "YWAMers" Should Do One.==}; # can't handle Dts's yet nor probably should!
+$expected=	qq{==YWAM Brussels DTS: It's the Best of the DTS's: All "YWAMers" Should do One.==}; # can't handle Dts's yet nor probably should!
 is(titlecase($test), $expected, "Acronym with punctuation test"); #9
 
 $test=		qq{==[[Fundraising for YWAMERS]]==};
 $expected=	qq{==[[Fundraising for YWAMERS]]==}; # should ignore things in double link brackets.
 is(titlecase($test), $expected, "Internal links test"); #10
 
-$test=		qq{==[http://www.ywamkb.net YWAM's KnowledgeBase]==};
-$expected=	qq{==[http://www.ywamkb.net YWAM's KnowledgeBase]==}; # should ignore things in single link brackets.
+$test=		qq{==[http://www.ywamkb.net YWAM's KnowledgeBase]== };
+$expected=	qq{==[http://www.ywamkb.net YWAM's KnowledgeBase]== }; # should ignore things in single link brackets.
 is(titlecase($test), $expected, "External links test"); #11
 
-$test=		qq{==http://www.ywamkb.net YWAM's knowledgebase==};
-$expected=	qq{==http://www.ywamkb.net YWAM's KnowledgeBase==}; # should ignore naked links
+$test=		qq{==http://www.ywamkb.net YWAM's knowledgebase ==};
+$expected=	qq{==http://www.ywamkb.net YWAM's KnowledgeBase ==}; # should ignore naked links
 is(titlecase($test), $expected, "Bare External links test"); #12
 
 use Tie::File::AsHash;

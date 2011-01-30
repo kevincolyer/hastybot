@@ -321,8 +321,13 @@ sub make_parseheadingtext_iterator {
 	}
 }
 
-my $iterator=make_parseheadingtext_iterator ( @stack2 );
+use Titlecase qw(titlecase);
 
+my $iterator=make_parseheadingtext_iterator ( @stack2 );
+my $correct;
 while ( my $tok = $iterator->() ) {
-    say "|".uc($tok->[1])."|" if $tok->[0] eq 'HEADINGTEXT';
+    if ($tok->[0] eq 'HEADINGTEXT') { $correct = titlecase( $tok->[1] );
+    say "|".$tok->[1]."|";
+    say "    corrected to |".$correct."|" if $tok->[1] ne $correct;
+    }
 }

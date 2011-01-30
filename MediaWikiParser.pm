@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 
 use 5.10.0;
-#use warnings;
 use strict;
 # licence - perl artistic licence...
 use utf8;
@@ -143,7 +142,7 @@ sub tokenise {
 	# TODO - inside html....
 	# HTML_BODY	=> 'IGNORE',
 
-	# process HEADINGS - moved to _parseheading_simple
+	# process HEADINGS - moved to _parseheading
 
 
 	# 
@@ -228,7 +227,7 @@ sub customparser {
     my ($wikitext,$o1,$o2, @parsers)=@_;
     my @stack=	tokenise($wikitext);
  
-    if (!@parsers) { @parsers = qw(_parseheading_simple _parsetemplate_simple _parseelink_simple _parseilink_simple _parsetable_simple) };
+    if (!@parsers) { @parsers = qw(_parseheading _parsetemplate_simple _parseelink _parseilink_simple _parsetable_simple) };
     # parse using a chain of sub parsers...
     no strict; # needed for below
     map { @stack =  &$_(@stack) } @parsers; # &$_() creates a sub from the string value in $_
@@ -330,12 +329,12 @@ sub _testparser {
 	URL 		=> 'IGNORE',
 	UNKNOWN 	=> 'IGNORE', 
     );
-    my @parsers = qw(	_parseheading_simple 
-			_parsetemplate_simple 						_parseelink_simple 						_parseilink_simple 						_parsetable_simple	);
+    my @parsers = qw(	_parseheading 
+			_parsetemplate_simple 						_parseelink 						_parseilink_simple 						_parsetable_simple	);
     return customparser(@_, \%o1, \%o2, @parsers);
 }
 
-sub _parseheading_simple { 
+sub _parseheading { 
     my @returnstack;
     my $state_heading=0;
     my $headinglevel=0;
@@ -344,7 +343,7 @@ sub _parseheading_simple {
     while (my $tok=shift @_) {
 # 	warn Dumper $tok;
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
-		@{ $tok->[1] } = _parseheading_simple( @{ $tok->[1] } ) ; # dereference and recurse
+		@{ $tok->[1] } = _parseheading( @{ $tok->[1] } ) ; # dereference and recurse
 	}
 
 	if ($tok->[0] eq 'NL') {$headinglevel=0; $state_heading=0}; # reset heading on newline
@@ -406,7 +405,7 @@ sub _parseheading_simple {
 
 
 
-sub _parseelink_simple { 
+sub _parseelink { 
     my @returnstack;
     my $inelink=0;
     my $elinkstart=0;
@@ -414,7 +413,7 @@ sub _parseelink_simple {
     my $elinkws=0;
     while (my $tok=shift @_) {
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
-		@{ $tok->[1] } = _parseelink_simple( @{ $tok->[1] } ) ; # dereference and recurse
+		@{ $tok->[1] } = _parseelink( @{ $tok->[1] } ) ; # dereference and recurse
 	}
 
 	#if url not in elink then mark as bareurl or baremailto
