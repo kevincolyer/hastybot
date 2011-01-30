@@ -30,8 +30,7 @@ sub tokenise {
     my $state_nowiki=0;
     my $state_htmlcom=0;
     my @state_html; # state variable is a stack... perhaps we need a stack here too?
-    my $state_heading=0;
-    my $headinglevel=0;
+
 
     my $tokens = sub {
 	TOKEN: { 
@@ -144,58 +143,8 @@ sub tokenise {
 	# TODO - inside html....
 	# HTML_BODY	=> 'IGNORE',
 
-	# process HEADINGS 
-	if ($tok->[0] eq 'NL') {$headinglevel=0; $state_heading=0}; # reset heading on newline
+	# process HEADINGS - moved to _parseheading_simple
 
-	if ($tok->[0] eq 'HEADING_O') { # heading OPEN
-	    if ($headinglevel) {die ("this can not happen - heading_o is always first!");}
-	    $headinglevel = length ($tok->[1]);
-	    $state_heading 	  = @stack; # stack size +1 will be the index of this item as not inserted into stack yet!
-	    $tok->[0]     = "H$headinglevel";
-	};
-
-	if ($tok->[0] eq 'HEADING_C') { # heading CLOSE
-	    if (!$headinglevel) {$tok->[0] = 'IGNORE'} # ignore close before open
-	    else {
-		my $closeheading=length($tok->[1]); 
-		if ($headinglevel>$closeheading) { # closeheading wins - add an ignore with = x diff after openheading
-		    my $tok2 = ['IGNORE','=' x ($headinglevel-$closeheading)];
-		    splice(@stack,$state_heading+1,0,$tok2); #hopefully add tok2 to just after the first heading
-		    $stack[$state_heading]->[0]= "H$closeheading";
-		    $stack[$state_heading]->[1]= "=" x $closeheading;
-		    $tok->[0]="H$closeheading";
-		}; 
-		if ($headinglevel<$closeheading) { # heading wins - add and ignore with = x diff after close heading - reset closeheading
-		    $last='IGNORE'; # we move ahead a token so trick optimiser...
-		    my $tok2 = [$last,'=' x ($closeheading-$headinglevel)];
-		    push @stack,$tok2; # push my difference token into stack before current token 
-		    $tok->[0]= "H$headinglevel";
-		    $tok->[1]= "=" x $headinglevel;
-		    $closeheading=$headinglevel;
-		    
-		}; 
-		if ($closeheading==$headinglevel) { # the only other option...
-		    $tok->[0] = "H$closeheading";
-		};
-		# cut out the heading, replace with arrayref and tok h3 etc.
-		my @snip= splice (@stack, $state_heading);
-		#warn Dumper @snip;
-		# ignore opening tag and closing semantic meaning no longer neaded
-		$snip[0]->[0] = 'IGNORE';
-		$tok->[0] = 'IGNORE';
-		push @snip, $tok; # put closing tag on too i.e. currently processing one
-		#warn Dumper @snip;
-		$stack[$state_heading]->[1]= \@snip;			# add array ref to stack
-		$stack[$state_heading]->[0] = "H$closeheading";	# give it a meaningful name
-		#warn Dumper @stack;
-		# done
-		$headinglevel=0;
-		$last='IGNORE';
-		$state_heading=0;
-		
-		next; # we've added to stack so now restart the loop.
-	    }
-	};
 
 	# 
 	# some optimisation to reduce tokens
@@ -280,6 +229,7 @@ sub customparser {
 
     my @stack=tokenise($wikitext);
     # parse using a chain of sub parsers...
+    @stack=	_parseheading_simple(@stack);
     @stack=  	_parsetemplate_simple(@stack);
     @stack=	_parseelink_simple(@stack);
     @stack=     _parseilink_simple(@stack);
@@ -384,6 +334,73 @@ sub _testparser {
     
     return customparser(@_, \%o1, \%o2);
 }
+
+sub _parseheading_simple { 
+    my @returnstack;
+    my $state_heading=0;
+    my $headinglevel=0;
+    while (my $tok=shift @_) {
+	if ( ref( $tok->[1] ) eq 'ARRAY')  {
+		@{ $tok->[1] } = _parseheading_simple( @{ $tok->[1] } ) ; # dereference and recurse
+	}
+
+	if ($tok->[0] eq 'NL') {$headinglevel=0; $state_heading=0}; # reset heading on newline
+
+	if ($tok->[0] eq 'HEADING_O') { # heading OPEN
+	    if ($headinglevel) {die ("this can not happen - heading_o is always first!");}
+	    $headinglevel = length ($tok->[1]);
+	    $state_heading 	  = @returnstack; # stack size +1 will be the index of this item as not inserted into stack yet!
+	    $tok->[0]     = "H$headinglevel";
+	};
+
+	if ($tok->[0] eq 'HEADING_C') { # heading CLOSE
+	    if (!$headinglevel) {$tok->[0] = 'IGNORE'} # ignore close before open
+	    else {
+		my $closeheading=length($tok->[1]); 
+		if ($headinglevel>$closeheading) { # closeheading wins - add an ignore with = x diff after openheading
+		    my $tok2 = ['IGNORE','=' x ($headinglevel-$closeheading)];
+		    splice(@returnstack,$state_heading+1,0,$tok2); #hopefully add tok2 to just after the first heading
+		    $returnstack[$state_heading]->[0]= "H$closeheading";
+		    $returnstack[$state_heading]->[1]= "=" x $closeheading;
+		    $tok->[0]="H$closeheading";
+		}; 
+		if ($headinglevel<$closeheading) { # heading wins - add and ignore with = x diff after close heading - reset closeheading
+		    $last='IGNORE'; # we move ahead a token so trick optimiser...
+		    my $tok2 = [$last,'=' x ($closeheading-$headinglevel)];
+		    push @returnstack,$tok2; # push my difference token into stack before current token 
+		    $tok->[0]= "H$headinglevel";
+		    $tok->[1]= "=" x $headinglevel;
+		    $closeheading=$headinglevel;
+		    
+		}; 
+		if ($closeheading==$headinglevel) { # the only other option...
+		    $tok->[0] = "H$closeheading";
+		};
+		# cut out the heading, replace with arrayref and tok h3 etc.
+		my @snip= splice (@returnstack, $state_heading);
+		#warn Dumper @snip;
+		# ignore opening tag and closing semantic meaning no longer neaded
+		$snip[0]->[0] = 'IGNORE';
+		$tok->[0] = 'IGNORE';
+		push @snip, $tok; # put closing tag on too i.e. currently processing one
+		#warn Dumper @snip;
+		$returnstack[$state_heading]->[1]= \@snip;			# add array ref to stack
+		$returnstack[$state_heading]->[0] = "H$closeheading";	# give it a meaningful name
+		#warn Dumper @stack;
+		# done
+		$headinglevel=0;
+		$last='IGNORE';
+		$state_heading=0;
+		
+		next; # we've added to stack so now restart the loop.
+	    }
+	};
+
+    #warn Dumper @returnstack;
+    return @returnstack;
+}
+
+
 
 sub _parseelink_simple { 
     my @returnstack;
