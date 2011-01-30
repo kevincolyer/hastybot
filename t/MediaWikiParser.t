@@ -124,7 +124,7 @@ is( rendertokens(tokenise($test)) , $expected, "#17 Tokenising - Whitespace");
 print "\n";
 $test=		qq{=== heading ===};
 $expected=	qq{H3|IGNORE|WS|BODYWORD|WS|IGNORE}; #rendertext(tokenise($test));
-is( rendertokens(MediaWikiParser::_parseheading_simple(tokenise($test))) , $expected, "#18 Tokenising - balanced headings");
+is( rendertokens(MediaWikiParser::_parseheading(tokenise($test))) , $expected, "#18 Tokenising - balanced headings");
 
 # === heading ==\n== heading ===
 ##=== heading ==\n== heading ===
@@ -132,8 +132,8 @@ is( rendertokens(MediaWikiParser::_parseheading_simple(tokenise($test))) , $expe
 print "\n";
 $test=		qq{=== heading ==\n== heading ===};
 $expected=	qq{H2|IGNORE|IGNORE|WS|BODYWORD|WS|IGNORE|NL|H2|IGNORE|WS|BODYWORD|WS|IGNORE|IGNORE}; #rendertext(tokenise($test));
-is( rendertokens(MediaWikiParser::_parseheading_simple(tokenise($test))) , $expected, "#19 Tokenising - unbalanced headings");
-is( rendertext(MediaWikiParser::_parseheading_simple(tokenise($test))) , $test, "#20 Tokenising - unbalanced headings - rendering fidelity");
+is( rendertokens(MediaWikiParser::_parseheading(tokenise($test))) , $expected, "#19 Tokenising - unbalanced headings");
+is( rendertext(MediaWikiParser::_parseheading(tokenise($test))) , $test, "#20 Tokenising - unbalanced headings - rendering fidelity");
 
 #from mediawiki test: 
 # ===hello
@@ -149,7 +149,7 @@ is( rendertext(MediaWikiParser::_parseheading_simple(tokenise($test))) , $test, 
 print "\n";
 $test=		qq{=== heading\n ===};
 $expected=	qq{H3|WS|BODYWORD|NL|WS|IGNORE}; #rendertext(tokenise($test));
-is( rendertokens(MediaWikiParser::_parseheading_simple(tokenise($test))) , $expected, "#21 Tokenising - balanced headings");
+is( rendertokens(MediaWikiParser::_parseheading(tokenise($test))) , $expected, "#21 Tokenising - balanced headings");
 #ignore warning for unrecognised token UNKNOWN here.
 
 # [[DTS
