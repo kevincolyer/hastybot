@@ -50,8 +50,8 @@ $test=		qq{YWAM BRUssels DTS - it's the BEST of the dts'S: All YWAMers should do
 $expected=	qq{YWAM Brussels DTS - It's the Best of the DTS's: All YWAMers Should do One. }; # can't handle Dts's yet nor probably should!
 is(titlecase($test), $expected, "Acronym test"); #8
 
-$test=		qq{==ywam BRUssels dts: it's the BEST of the dts'S: All "YWAMers" should do one.==};
-$expected=	qq{==YWAM Brussels DTS: It's the Best of the DTS's: All "YWAMers" Should do One.==}; # can't handle Dts's yet nor probably should!
+$test=		qq{==ywam BRUssels dts: it's the BEST of the dts'S: All "YWAMers" should do one. == };
+$expected=	qq{==YWAM Brussels DTS: It's the Best of the DTS's: All "YWAMers" Should do One. == }; # can't handle Dts's yet nor probably should!
 is(titlecase($test), $expected, "Acronym with punctuation test"); #9
 
 $test=		qq{==[[Fundraising for YWAMERS]]==};
@@ -66,6 +66,13 @@ $test=		qq{==http://www.ywamkb.net YWAM's knowledgebase ==};
 $expected=	qq{==http://www.ywamkb.net YWAM's KnowledgeBase ==}; # should ignore naked links
 is(titlecase($test), $expected, "Bare External links test"); #12
 
+$test=		qq{==http://www.ywamkb.net & YWAM's& knowledgebase ==};
+$expected=	qq{==http://www.ywamkb.net and YWAM's& KnowledgeBase ==}; # should ignore naked links
+is(titlecase($test), $expected, "Ampersand test test"); #13
+
+$test=		qq{== lots of words to find in Appendix A or appendix vii or Appendix i ==};
+$expected=	qq{== Lots of Words to Find in Appendix A or Appendix VII or Appendix I ==}; # should ignore naked links
+is(titlecase($test), $expected, "Two word subs - Appendix A etc test"); #14
 use Tie::File::AsHash;
 
 tie my %possacro, 'Tie::File::AsHash', 'PossibleAcronym.conf', split => ':'

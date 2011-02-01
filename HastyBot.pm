@@ -33,14 +33,14 @@ BEGIN {
 # hastybot class - supersets wikipediabot class
 # call -> new 
 # CALL -> get opts - get command line
-# CALL -> get page (named page) - handles redirects (marks as seen) returns text of page
-# CALL -> next page name - returns one by one, accepts array to add to stack 
-# CALL -> set page (named page, content, editcomment) unless simulated and cache
+# CALL -> getpage (named page) - handles redirects (marks as seen) returns text of page
+# CALL -> nextpage name - returns one by one, accepts array to add to stack 
+# CALL -> savepage (named page, content, editcomment) unless simulated and cache
 # CALL -> mark page seen (page, comment) 
 # CALL -> ispageseen (page)
 # CALL -> empty seen cache
 # CALL -> findreplace regex,addtotop,addtobottom
-# CALL -> get page list (new or all - given names space) but using cache - need empty first!
+# CALL -> getpagelist (new or all - given names space) but using cache - need empty first!
 # CALL -> login - creates bot and logs in
 # call -> getuserhastybotpage (hastybot/arconyms) get and parse a little - remove comments etc?
 # call -> saveuserhastybotpage - put it back!

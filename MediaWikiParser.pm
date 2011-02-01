@@ -18,7 +18,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 1.00;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug customparser flatten reduce);
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug customparser flatten reduce make_iterator);
 
 
 our $debug=0;
@@ -58,7 +58,8 @@ sub tokenise {
 	    #       'HTMLCOM'
 	    return ['HTMLCOM_O',   $1] 	if $text =~ /\G	(<!--)		/gcx;
 	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
-
+	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
+	    
 	    #	    'IGNORE' (AND UNKNOWN)
 	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]{1,}__)	/gcx;
 	    #	    'TABLE'
@@ -223,6 +224,14 @@ sub parse {
     return _testparser(@_);
 }
     
+sub make_iterator {
+    my (@stack) = @_  ; # process and flatten stack
+    return sub {
+	return undef if !@stack; # if nothing more return undef
+	return shift @stack ; # otherwise return a token and reduce stack
+	}
+}
+
 sub customparser {
     my ($wikitext,$o1,$o2, @parsers)=@_;
     my @stack=	tokenise($wikitext);
@@ -330,7 +339,10 @@ sub _testparser {
 	UNKNOWN 	=> 'IGNORE', 
     );
     my @parsers = qw(	_parseheading 
-			_parsetemplate_simple 						_parseelink 						_parseilink_simple 						_parsetable_simple	);
+			_parsetemplate_simple 
+			_parseelink
+			_parseilink_simple
+			_parsetable_simple	);
     return customparser(@_, \%o1, \%o2, @parsers);
 }
 
@@ -441,14 +453,14 @@ sub _parseelink {
 	    if ($tok->[0] eq 'WS') {
 		if ($elinkws==0) {
 		    $elinkws=@returnstack; 	# only record first ws seen...
-		    $tok->[0] = 'IGNORE'; } 	# dont need the WS now...
+		}			 	# mark WS as IGNORE later
 	    }
 
 	    if ($tok->[0] eq 'NL') {
 		#reset
-		for ($elinkstart..@returnstack) {
-		    $returnstack[$_]->[0]='IGNORE';
-		}
+# 		for ($elinkstart..@returnstack) {
+# 		    $returnstack[$_]->[0]='IGNORE';
+# 		}
 		$elinkstart=0;
 		$inelink=0;
 		$elinkws=0;
@@ -462,6 +474,7 @@ sub _parseelink {
 		    }
 		}
 		$returnstack[$elinkstart]->[0] = 'IGNORE';
+		$returnstack[$elinkws]->[0] = 'IGNORE';
 		$returnstack[$elinkstart+1]->[0] = 'ELINK'.$returnstack[$elinkstart+1]->[0];
 		$elinkstart=0;
 		$elinkws=0;
@@ -607,7 +620,7 @@ sub _parsetemplate_simple {
     return @returnstack;
 }
 
-sub reduce {
+sub reduce  {
     my (@stack)=@_;
     my @returnstack;
 #     warn Dumper @stack;
@@ -636,6 +649,8 @@ sub reduce {
 		$last="ARRAYREF";
 	    };
 	    if ($this eq $last and $last ne "ARRAYREF") {
+		if (!defined $tok->[1])	{warn Dumper @returnstack; say "reduce Undefined tok problem!"; $tok->[1]=""; };
+		#if (!defined $returnstack[-1]->[1]) {warn Dumper @returnstack };
 		$returnstack[-1]->[1].=$tok->[1];  # don't merge array refs.
 # 		say $returnstack[$#returnstack]->[0]." merging..." 
 		next;
@@ -682,7 +697,7 @@ sub _simplify {
     return @returnstack;
 };
 
-sub flatten {
+sub flatten  {
     my (@stack) = @_;
     my @returnstack;
     while (my $tok = shift @stack) {

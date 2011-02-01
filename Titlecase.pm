@@ -28,8 +28,15 @@ our @EXPORT_OK   = qw(titlecase isanacronym ucfirstimproved possibleacronym);
 sub titlecase {
     my ($s) = @_;
     return $s if $s=~ m/.*\[+.*\]+.*/; #if one or more square brackets then give up
+    return "" if $s eq ""; # sanity for null strings
+    $s =~ s/\s\&\s/ and /g;# get rid of horrid ampersands...
+    my $ts = substr($s,-1)eq " " ? " " : ""; # if trailing space then keep it (hack)
+    #say "$ts|ping";
     $s = join " ", map { _titlecasemangler($_) } split /\s+/, $s;
-    return  ($s=~ m/^[^a-z]*(\w+)/i && isacronym($1)) ? $s : ucfirstimproved( $s ) ;
+    $s = ($s=~ m/^[^a-z]*(\w+)/i && isacronym($1)) ? $s.$ts : ucfirstimproved( $s.$ts ) ;
+    # two word alternations
+    $s =~ s/(Appendix )([a-z]|[IVXivx]+)/$1.uc($2)/ge; # get Appendix A or I, II, VI etc
+    return $s;
 };
 
 sub _titlecasemangler {
@@ -48,6 +55,13 @@ sub isacronym {
     https	=> 'https',
     ftp		=> 'ftp',
     mailto	=> 'mailto',
+    html	=> 'HTML',
+    rss		=> 'RSS',
+    css		=> 'CSS',
+    cms		=> 'CMS',
+    php		=> 'PHP',
+    pr		=> 'PR',
+    welc	=> 'WELC',
     ywam 	=> 'YWAM',
     ywamer 	=> 'YWAMer',
     ywamers	=> 'YWAMers',
@@ -58,6 +72,16 @@ sub isacronym {
     uofn	=> 'UofN',
     ywamkb	=> 'YWAMKB',
     kb		=> 'KB',
+    isbn	=> 'ISBN',
+    pdf		=> 'PDF',
+    pdfs	=> 'PDFs',
+    uk		=> 'UK',
+    hiv		=> 'HIV',
+    aids	=> 'AIDS',
+    awol	=> 'AWOL',
+    glt		=> 'GLT',
+    xml		=> 'XML',
+
     knowledgebase => 'KnowledgeBase',
     ywamknowledgebase => 'YWAMKnowledgeBase',
     );
@@ -81,7 +105,7 @@ sub possibleacronym {
 
 sub ucfirstimproved {
     my ($s)= @_;
-    $s=~ s/([^a-z]*)([a-z])(.*)/$1.uc($2).$3/gei;
+    $s=~ s/([^a-z]*)([a-z])(.*)/$1.uc($2).$3/gei; #(globally match, eval and insensitive search)
     return $s;
 
 };
