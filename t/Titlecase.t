@@ -66,13 +66,22 @@ $test=		qq{==http://www.ywamkb.net YWAM's knowledgebase ==};
 $expected=	qq{==http://www.ywamkb.net YWAM's KnowledgeBase ==}; # should ignore naked links
 is(titlecase($test), $expected, "Bare External links test"); #12
 
-$test=		qq{==http://www.ywamkb.net & YWAM's& knowledgebase ==};
-$expected=	qq{==http://www.ywamkb.net and YWAM's& KnowledgeBase ==}; # should ignore naked links
+$test=		qq{==http://www.ywamkb.net & YWAM's& knowledgebase &amp; ==};
+$expected=	qq{==http://www.ywamkb.net and YWAM's& KnowledgeBase and ==};
 is(titlecase($test), $expected, "Ampersand test test"); #13
 
 $test=		qq{== lots of words to find in Appendix A or appendix vii or Appendix i ==};
-$expected=	qq{== Lots of Words to Find in Appendix A or Appendix VII or Appendix I ==}; # should ignore naked links
+$expected=	qq{== Lots of Words to Find in Appendix A or Appendix VII or Appendix I ==}; 
 is(titlecase($test), $expected, "Two word subs - Appendix A etc test"); #14
+
+$test=		qq{== ii. xviii. i. lots of words to find ==};
+$expected=	qq{== II. XVIII. I. Lots of Words to Find ==}; 
+is(titlecase($test), $expected, "Roman numerals at start test"); #15
+
+$test=		qq{== pre-dts and this/that church-planting ==};
+$expected=	qq{== Pre-DTS and This/That Church-Planting ==}; # compound words
+is(titlecase($test), $expected, "compund words test"); #16
+
 use Tie::File::AsHash;
 
 tie my %possacro, 'Tie::File::AsHash', 'PossibleAcronym.conf', split => ':'

@@ -27,7 +27,7 @@ BEGIN {
         %EXPORT_TAGS = ( );     # eg: TAG => [ qw!name1 name2! ],
         # your exported package globals go here,
         # as well as any optionally exported functions
-        @EXPORT_OK   = qw(%opts %seenpages &createbot &getpagelist &addtopage &ispageseen &purgepage &nextpage &getnextpage &savepage &markpageseen &getpage);
+        @EXPORT_OK   = qw(%opts %seenpages &createbot &getpagelist &addtopage &ispageseen &purgepage &nextpage &getnextpage &savepage &markpageseen &getpage &getallpages);
     }
     our @EXPORT_OK;
 # hastybot class - supersets wikipediabot class
@@ -312,3 +312,5 @@ sub markpageseen {
 # </ul>
 # <!-- end content -->
 # };
+
+1;

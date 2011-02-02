@@ -52,28 +52,26 @@ sub tokenise {
 							(?:\/[^\#\s]+)?         # page - optional
 							(?:\#(?:\S*))?          # place - optional
 								)	/gcxi;
-
+	    
+	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]{1,}__)	/gcx;
+	    return ['BODYWORD',    $1] 	if $text =~ /\G (\w+)		/gcx;
+	    return ['NL',          $1]	if $text =~ /\G (\n+)		/gcx; # put above whites space
+	    return ['WS', 	   $1]	if $text =~ /\G (\s)		/gcx; # seems to gobble newlines
+	    return ['POINT',       $1] 	if $text =~ /\G (\.)		/gcx;
+	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
 	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
 	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/nowiki>)	/igcx;
 	    #       'HTMLCOM'
 	    return ['HTMLCOM_O',   $1] 	if $text =~ /\G	(<!--)		/gcx;
 	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
-	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
-	    
-	    #	    'IGNORE' (AND UNKNOWN)
-	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]{1,}__)	/gcx;
 	    #	    'TABLE'
 	    return ['TABLE_O',     $1]	if $text =~ /\G (\{\|)		/gcx;
-	    return ['TABLE_C', 	   $1]	if $text =~ /\G (\|\})		/gcx;
+	    return ['TABLE_C', 	   $1]	if $text =~ /\G ^(\|\})	/gcxm; # because |}} bar/templ_e is confused with table_c|ignore...
 	    #	    'BODYTEXT'
-	    return ['BODYWORD',    $1] 	if $text =~ /\G (\w+)		/gcx;
-	    return ['BAR',         $1] 	if $text =~ /\G (\|)		/gcx;
-	    return ['POINT',       $1] 	if $text =~ /\G (\.)		/gcx;
+	    return ['BAR',         $1] 	if $text =~ /\G (\|)	/gcx; # because |}} bar/templ_e is confused
 	    return ['COLON',       $1] 	if $text =~ /\G (:)		/gcx;
 	    return ['SEMICOLON',   $1] 	if $text =~ /\G (;)		/gcx;
 	    return ['EXCLAMATION', $1] 	if $text =~ /\G (!)		/gcx;
-	    return ['NL',          $1]	if $text =~ /\G (\n+)		/gcx;
-	    return ['WS', 	   $1]	if $text =~ /\G (\s)		/gcx;#seems to gobble newlines
 	    return ['BOLD',	   $1]  if $text =~ /\G (''')		/gcx;
 	    return ['ITALIC',	   $1]  if $text =~ /\G ('')		/gcx;
 	    return ['APOSTROPHY',  $1]  if $text =~ /\G (')		/gcx;
@@ -241,14 +239,16 @@ sub customparser {
     no strict; # needed for below
     map { @stack =  &$_(@stack) } @parsers; # &$_() creates a sub from the string value in $_
     strict;
-
+#warn Dumper @stack;
     # optimise 	#1 - group tokens, two passes
     @stack=     _simplify($o1, @stack);
     @stack=     _simplify($o2, @stack);
+#warn Dumper @stack;
     # optimise 	#2 - combine adjacant identical tokens
     @stack=	reduce(@stack);
 
     # sanity check
+#     if (rendertext(@stack) ne $wikitext) {warn Dumper @stack}; 
     die "Rendering comparison of parsed wikitext failed - critical error. Stopping." if rendertext(@stack) ne $wikitext;
     return @stack;
 }

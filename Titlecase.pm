@@ -29,17 +29,28 @@ sub titlecase {
     my ($s) = @_;
     return $s if $s=~ m/.*\[+.*\]+.*/; #if one or more square brackets then give up
     return "" if $s eq ""; # sanity for null strings
-    $s =~ s/\s\&\s/ and /g;# get rid of horrid ampersands...
+    $s =~ s/\s\&(amp;)?\s/ and /g;# get rid of horrid ampersands...
     my $ts = substr($s,-1)eq " " ? " " : ""; # if trailing space then keep it (hack)
     #say "$ts|ping";
     $s = join " ", map { _titlecasemangler($_) } split /\s+/, $s;
     $s = ($s=~ m/^[^a-z]*(\w+)/i && isacronym($1)) ? $s.$ts : ucfirstimproved( $s.$ts ) ;
     # two word alternations
     $s =~ s/(Appendix )([a-z]|[IVXivx]+)/$1.uc($2)/ge; # get Appendix A or I, II, VI etc
+    $s =~ s/([IVXivx]+)(\.\s)/uc($1).$2/ge; # get Appendix A or I, II, VI etc
+    # corner cases...
+    $s =~ s/\. it/. It/g; # for some reason there are sentences in headings... this is a corner case    
+    #$s =~ s/pre-dts/Pre-DTS/ig; # corner case    
     return $s;
 };
-
 sub _titlecasemangler {
+    my ($s) = @_;
+    # if a compound word joined with / or - then split mangle on both bits...
+    return _titlecasemangler2($s) if $s !~ m/\b[-\/]\b/;
+    $s =~ m/(\w+)([\/-])(.*)/;
+    return _titlecasemangler2($1).$2._titlecasemangler2($3);
+}
+
+sub _titlecasemangler2 {
 	my ($s) = @_;
 	return lc($s) if $s=~ m/^\d+(st|nd|rd|th)[^a-z]*$/i ; # ignore 1st 2nd, 3rd, 4th etc.
 	return lc($s) if $s=~ m/^[^a-z]*(a(nd?|s|t|m)*|b(ut|y)|do|en|for|i[fnst]|o[fnr]|t[he|o]*|vs?\.?|via|etc|e\.g)[\,\."':;]*$/i; # return lowercased ignore words  
@@ -62,6 +73,7 @@ sub isacronym {
     php		=> 'PHP',
     pr		=> 'PR',
     welc	=> 'WELC',
+    welt	=> 'WELT',
     ywam 	=> 'YWAM',
     ywamer 	=> 'YWAMer',
     ywamers	=> 'YWAMers',
@@ -80,8 +92,16 @@ sub isacronym {
     aids	=> 'AIDS',
     awol	=> 'AWOL',
     glt		=> 'GLT',
+    nlt		=> 'NLT',
+    blt		=> 'BLT',
+    elf		=> 'ELF',
     xml		=> 'XML',
-
+    crit	=> 'CRIT',
+    dna		=> 'DNA',
+    agm		=> 'AGM',
+    swot	=> 'SWOT',
+    faq		=> 'FAQ',
+    kbian	=> 'KBian',
     knowledgebase => 'KnowledgeBase',
     ywamknowledgebase => 'YWAMKnowledgeBase',
     );
