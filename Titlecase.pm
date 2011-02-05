@@ -110,6 +110,9 @@ sub isacronym {
     xp		=> 'XP',
     diy		=> 'DIY',
     DVD		=> 'DVD',
+    call2all	=> 'Call2All',
+    url		=> 'URL',
+    mgm		=> 'MGM',
     knowledgebase => 'KnowledgeBase',
     ywamknowledgebase => 'YWAMKnowledgeBase',
     );
