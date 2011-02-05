@@ -27,20 +27,30 @@ our @EXPORT_OK   = qw(titlecase isanacronym ucfirstimproved possibleacronym);
 
 sub titlecase {
     my ($s) = @_;
+    $s =~ s/<br>//ig; # corner case - cant see why it should even be there...  
+   
     return $s if $s=~ m/.*\[+.*\]+.*/; #if one or more square brackets then give up
     return "" if $s eq ""; # sanity for null strings
+
     $s =~ s/\s\&(amp;)?\s/ and /g;# get rid of horrid ampersands...
+
     my $ts = substr($s,-1)eq " " ? " " : ""; # if trailing space then keep it (hack)
     #say "$ts|ping";
     $s = join " ", map { _titlecasemangler($_) } split /\s+/, $s;
     $s = ($s=~ m/^[^a-z]*(\w+)/i && isacronym($1)) ? $s.$ts : ucfirstimproved( $s.$ts ) ;
+
     # two word alternations
     $s =~ s/(Appendix )([a-z]|[IVXivx]+)/$1.uc($2)/ge; # get Appendix A or I, II, VI etc
-    $s =~ s/([IVXivx]+)(\.\s)/uc($1).$2/ge; # get Appendix A or I, II, VI etc
+    $s =~ s/([IVXivx]+)([\.:]\s)/uc($1).$2/ge; # get Appendix A or I, II, VI etc
+    $s =~ s/wise school/WISE School/ig; # corner case 
+
     # corner cases...
-    $s =~ s/\. it/. It/g; # for some reason there are sentences in headings... this is a corner case    
+    $s =~ s/\.\s+it/. It/g; # for some reason there are sentences in headings... this is a corner case    
+    $s =~ s/\.\s+the/. The/g; # for some reason there are sentences in headings... this is a corner case    
+    $s =~ s/Call2All/Call2All/ig; # corner case 
     $s =~ s/go manual/GO Manual/ig; # corner case 
     $s =~ s/\&nbsp;/&nbsp;/ig; # corner case     
+    $s =~ s/a\/v/A\/V/ig; # corner case     
     return $s;
 };
 sub _titlecasemangler {
@@ -82,18 +92,24 @@ sub isacronym {
     ywamer 	=> 'YWAMer',
     ywamers	=> 'YWAMers',
     dts		=> 'DTS',
+    cdts	=> 'CDTS',
     bls		=> 'BLS',
     soe		=> 'SOE',
     sofm	=> 'SOFM',
+    spld	=> 'SPLD',
     uofn	=> 'UofN',
     ywamkb	=> 'YWAMKB',
     kb		=> 'KB',
     isbn	=> 'ISBN',
     pdf		=> 'PDF',
+    su		=> 'su',
+    sudo	=> 'sudo',
     pdfs	=> 'PDFs',
     uk		=> 'UK',
     hiv		=> 'HIV',
     aids	=> 'AIDS',
+    dfh		=> 'DFH',
+    df1		=> 'DF1',
     awol	=> 'AWOL',
     glt		=> 'GLT',
     nlt		=> 'NLT',
@@ -109,10 +125,13 @@ sub isacronym {
     xxx		=> 'XXX',
     xp		=> 'XP',
     diy		=> 'DIY',
-    DVD		=> 'DVD',
-    call2all	=> 'Call2All',
+    dvd		=> 'DVD',
+#    call2all	=> 'Call2All',
     url		=> 'URL',
     mgm		=> 'MGM',
+    itunes	=> 'iTunes',
+    iphone	=> 'iPhone',
+    ipod	=> 'iPod',
     knowledgebase => 'KnowledgeBase',
     ywamknowledgebase => 'YWAMKnowledgeBase',
     );

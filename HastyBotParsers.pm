@@ -25,6 +25,7 @@ our $debug=0;
 
 
 sub parseheadingtext {
+    my ($edit, $unflatten) = @_;
     my %o1 = (
     IGNORE 	=> 'IGNORE', #might always need this? 
     UNKNOWN	=> 'BODYTEXT', #might always need this? 
@@ -92,7 +93,7 @@ my %o2 = (
 			_parseelink
 			_parseilink_simple
 			_parsetable_simple	);
-    my @stack= customparser(@_, \%o1, \%o2, @parsers);
+    my @stack= customparser($edit, \%o1, \%o2, @parsers);
     
     # run a custom parser on text... output in stack
     # convert nested heading bodytext to headingtext
@@ -108,7 +109,9 @@ my %o2 = (
 	}
 	$tok->[0] =~ s/BODYTEXT/IGNORE/ ; # no body text either outside of headings
     }
-    @stack= reduce( flatten(@stack));
+    
+     if (!$unflatten) { @stack=flatten(@stack) }
+    @stack= reduce( @stack);
 #     warn Dumper @stack;
     return @stack;
 }
