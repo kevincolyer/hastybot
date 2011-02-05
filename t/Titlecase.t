@@ -78,8 +78,8 @@ $test=		qq{== ii. xviii. i. lots of words to find ==};
 $expected=	qq{== II. XVIII. I. Lots of Words to Find ==}; 
 is(titlecase($test), $expected, "Roman numerals at start test"); #15
 
-$test=		qq{== pre-dts and this/that church-planting ==};
-$expected=	qq{== Pre-DTS and This/That Church-Planting ==}; # compound words
+$test=		qq{== pre-dts and this/that church-planting windows/unix/linux this-that-other==};
+$expected=	qq{== Pre-DTS and This/That Church-Planting Windows/Unix/Linux This-That-Other==}; # compound words
 is(titlecase($test), $expected, "compund words test"); #16
 
 use Tie::File::AsHash;

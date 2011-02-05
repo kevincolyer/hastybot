@@ -39,15 +39,19 @@ sub titlecase {
     $s =~ s/([IVXivx]+)(\.\s)/uc($1).$2/ge; # get Appendix A or I, II, VI etc
     # corner cases...
     $s =~ s/\. it/. It/g; # for some reason there are sentences in headings... this is a corner case    
-    #$s =~ s/pre-dts/Pre-DTS/ig; # corner case    
+    $s =~ s/go manual/GO Manual/ig; # corner case 
+    $s =~ s/\&nbsp;/&nbsp;/ig; # corner case     
     return $s;
 };
 sub _titlecasemangler {
     my ($s) = @_;
     # if a compound word joined with / or - then split mangle on both bits...
     return _titlecasemangler2($s) if $s !~ m/\b[-\/]\b/;
-    $s =~ m/(\w+)([\/-])(.*)/;
-    return _titlecasemangler2($1).$2._titlecasemangler2($3);
+    return join '/', map {_titlecasemangler2($_)} split '/', $s if $s =~ m/\//;
+    return join '-', map {_titlecasemangler2($_)} split '-', $s if $s =~ m/-/;
+    return $s;
+    #$s =~ m/(\w+)([\/-])(.*)/;
+    #return _titlecasemangler2($1).$2._titlecasemangler2($3);
 }
 
 sub _titlecasemangler2 {
@@ -102,6 +106,10 @@ sub isacronym {
     swot	=> 'SWOT',
     faq		=> 'FAQ',
     kbian	=> 'KBian',
+    xxx		=> 'XXX',
+    xp		=> 'XP',
+    diy		=> 'DIY',
+    DVD		=> 'DVD',
     knowledgebase => 'KnowledgeBase',
     ywamknowledgebase => 'YWAMKnowledgeBase',
     );

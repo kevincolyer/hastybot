@@ -18,10 +18,12 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 1.00;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug customparser flatten reduce make_iterator);
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug timed customparser flatten reduce make_iterator);
 
 
 our $debug=0;
+our $timed=0;
+our $debugtokens=0;
 
 sub tokenise {
     my ($text) = @_;
@@ -36,39 +38,51 @@ sub tokenise {
 	    #	    'URL'
 	    # http regexp inspiration from http://www.wellho.net/resources/ex.php4?item=p212/regextra
 	    # tokenise some code and inspiration from MJD's Higher Order Perl...
+	    return ['NL',          $1]	if $text =~ /\G (\n+)		/gcx; # put above whites space
+	    return ['WS', 	   $1]	if $text =~ /\G (\s)		/gcx; # seems to gobble newlines
+
+# 	    my $save=pos($text); # record where we are in the regexp
+# 	    if ($text =~ m/\G (mailto|http|https|ftp) 			/gcxi) {
+# 		# to save on the two expensive regexp's below
+# 		pos($text)=$save;
+# 		return ['MAILTO',      $1] 	if $text =~ /\G (
+# 							    (?:mailto\:)
+# 							    (?:\/\/)?		# optional
+# 							    (?:[^\s]+)		# before @
+# 							    (?:\@)			# must have an @
+# 							    (?:(?:[^\s\]\.])+)	# atleast one word
+# 							    (?:\.(?:[^\s\]])+)?	# optional . and word
+# 							    )		/gcxi;
+# 		return ['URL',         $1] 	if $text =~ /\G (
+# 							    (?:http|https|ftp)
+# 							    (?:\:\/\/)  
+# 							    (?:[^\:\/\s\]]+)        # server
+# 							    (?:\:\d+)?              # port - optional
+# 							    (?:\/[^\#\s]+)?         # page - optional
+# 							    (?:\#(?:\S*))?          # place - optional
+# 								    )	/gcxi;
+# 		}
 	    return ['MAILTO',      $1] 	if $text =~ /\G (
-							(?:mailto\:)
-							(?:\/\/)?		# optional
-							(?:[^\s]+)		# before @
-							(?:\@)			# must have an @
-							(?:(?:[^\s\]\.])+)	# atleast one word
-							(?:\.(?:[^\s\]])+)?	# optional . and word
-							)		/gcxi;
+							    (?:mailto\:)
+							    (?:\/\/)?		# optional
+							    (?:[^\s]+)		# before @
+							    (?:\@)			# must have an @
+							    (?:(?:[^\s\]\.])+)	# atleast one word
+							    (?:\.(?:[^\s\]])+)?	# optional . and word
+							    )		/gcxi;
 	    return ['URL',         $1] 	if $text =~ /\G (
 							(?:http|https|ftp)
 							(?:\:\/\/)  
 							(?:[^\:\/\s\]]+)        # server
 							(?:\:\d+)?              # port - optional
-							(?:\/[^\#\s]+)?         # page - optional
-							(?:\#(?:\S*))?          # place - optional
+							(?:\/[^\#\s\]]+)?         # page - optional
+							(?:[\/|\#](?:[^\]|\S]*))?          # place - optional need ] here?
 								)	/gcxi;
-	    
-	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]{1,}__)	/gcx;
+
 	    return ['BODYWORD',    $1] 	if $text =~ /\G (\w+)		/gcx;
-	    return ['NL',          $1]	if $text =~ /\G (\n+)		/gcx; # put above whites space
-	    return ['WS', 	   $1]	if $text =~ /\G (\s)		/gcx; # seems to gobble newlines
+	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]+__)	/gcx;
+	    
 	    return ['POINT',       $1] 	if $text =~ /\G (\.)		/gcx;
-	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
-	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
-	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/nowiki>)	/igcx;
-	    #       'HTMLCOM'
-	    return ['HTMLCOM_O',   $1] 	if $text =~ /\G	(<!--)		/gcx;
-	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
-	    #	    'TABLE'
-	    return ['TABLE_O',     $1]	if $text =~ /\G (\{\|)		/gcx;
-	    return ['TABLE_C', 	   $1]	if $text =~ /\G ^(\|\})	/gcxm; # because |}} bar/templ_e is confused with table_c|ignore...
-	    #	    'BODYTEXT'
-	    return ['BAR',         $1] 	if $text =~ /\G (\|)	/gcx; # because |}} bar/templ_e is confused
 	    return ['COLON',       $1] 	if $text =~ /\G (:)		/gcx;
 	    return ['SEMICOLON',   $1] 	if $text =~ /\G (;)		/gcx;
 	    return ['EXCLAMATION', $1] 	if $text =~ /\G (!)		/gcx;
@@ -78,6 +92,18 @@ sub tokenise {
 	    # 	    'HEADING'
 	    return ['HEADING_O',   $1] 	if $text =~ /\G ^(={1,6})	/gcxm; #need m for multiline to enable anchors here...
 	    return ['HEADING_C',   $1] 	if $text =~ /\G (={1,6})	/gcx;
+	   
+	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
+	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
+	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/nowiki>)	/igcx;
+	    #       'HTMLCOM'
+	    return ['HTMLCOM_O',   $1] 	if $text =~ /\G	(<!--)		/gcx;
+	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
+	    #	    'TABLE'
+	    return ['TABLE_O',     $1]	if $text =~ /\G (\{\|)		/gcx;
+	    return ['TABLE_C', 	   $1]	if $text =~ /\G ^(\|\})		/gcxm; # because |}} bar/templ_e is confused with table_c|ignore...
+	    #	    'BODYTEXT'
+	    return ['BAR',         $1] 	if $text =~ /\G (\|)		/gcx; # because |}} bar/templ_e is confused
 	    #BULLET
 	    #NUMBERLIST
 	    #DEFINITION
@@ -92,11 +118,13 @@ sub tokenise {
 	    return ['TEMPL_C',     $1] 	if $text =~ /\G	(\}\})		/gcx;
 
 	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>)		/igcx;
-	    return ['PRE_C',       $1] 	if $text =~ /\G	(<\/pre>)	/igcx;  
+	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>)		/igcx;
 	    #	    'HTML'
-	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcx;
-	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\s*\w*>)	/gcx;
-	    return ['HTML_SINGLE', $1]	if $text =~ /\G(<\/+\s*\w*\s*\/+>)/gcx;
+	    return ['BR',          $1] 	if $text =~ /\G	(<br>)		/igcx;  
+	    return ['HR',          $1] 	if $text =~ /\G	(<hr>)		/igcx;  
+	    return ['HTML_O',      $1] 	if $text =~ /\G	(<[a-z]+[^\/]*?>)	/gcxi;
+	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\w*>)	/gcx;
+	    return ['HTML_SINGLE', $1]	if $text =~ /\G(<\w*\/?>)	/gcx;
 
 	    return ['UNKNOWN',     $1] 	if $text =~ /\G (.)		/gcx;
 	    #groups
@@ -108,11 +136,13 @@ sub tokenise {
 
     my ($this, $last);
     $last="n/a";
+    _time("starting tokeniser") if $timed; 
     while (my $tok=$tokens->() ) {
 	# comments 
 	# opening and closing comments
 	# $state_nowiki $state_htmlcom
-	# htmlcomments
+	# htmlcomments 
+	say $tok->[0]," " x (20-length($tok->[0])),"| ".$tok->[1] if $debugtokens;
 	if ($tok->[0] eq 'HTMLCOM_O') {
 	    if ($state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
 	    else {$state_htmlcom= 1; $tok->[0] = 'IGNORE';} 
@@ -155,6 +185,7 @@ sub tokenise {
 	push @stack, $tok;
 	$last=$this;
     }
+    _time("finishing tokeniser",-1) if $timed;
     #warn Dumper @stack;
     return @stack;
 }
@@ -198,6 +229,8 @@ sub rendertokensbartext {
 }
 
 sub _render {
+    _time("starting _render") if $timed;
+
     my ($text, $first);
     my ($join,$which,@stack) = @_;
     $text="";
@@ -212,6 +245,7 @@ sub _render {
 	    $text.= $tok->[$which];
 	}
     }
+    _time("finished _render",-1) if $timed;
     return $text;
 }
 
@@ -231,14 +265,18 @@ sub make_iterator {
 }
 
 sub customparser {
+    _time("--ignore--",0) if $timed;
+    _time("starting custom parser") if $timed;
+
     my ($wikitext,$o1,$o2, @parsers)=@_;
     my @stack=	tokenise($wikitext);
- 
+    _time("starting chained subparsers") if $timed;
     if (!@parsers) { @parsers = qw(_parseheading _parsetemplate_simple _parseelink _parseilink_simple _parsetable_simple) };
     # parse using a chain of sub parsers...
     no strict; # needed for below
     map { @stack =  &$_(@stack) } @parsers; # &$_() creates a sub from the string value in $_
     strict;
+    _time("finishing chained subparsers",-1) if $timed;
 #warn Dumper @stack;
     # optimise 	#1 - group tokens, two passes
     @stack=     _simplify($o1, @stack);
@@ -249,7 +287,12 @@ sub customparser {
 
     # sanity check
 #     if (rendertext(@stack) ne $wikitext) {warn Dumper @stack}; 
-    die "Rendering comparison of parsed wikitext failed - critical error. Stopping." if rendertext(@stack) ne $wikitext;
+    if (rendertext(@stack) ne $wikitext) { 
+	warn Dumper @stack;
+	die "Rendering comparison of parsed wikitext failed - critical error. Stopping."; 
+    }
+    _time("finished custom parser",-1) if $timed;
+
     return @stack;
 }
 
@@ -358,12 +401,12 @@ sub _parseheading {
 		@{ $tok->[1] } = _parseheading( @{ $tok->[1] } ) ; # dereference and recurse
 	}
 
-	if ($tok->[0] eq 'NL') {$headinglevel=0; $state_heading=0}; # reset heading on newline
+	if ($tok->[0] eq 'NL' and $headinglevel) {$headinglevel=0; $returnstack[$state_heading]->[0]='IGNORE'; $state_heading=0}; # reset heading on newline
 
 	if ($tok->[0] eq 'HEADING_O') { # heading OPEN
 	    if ($headinglevel) {die ("this can not happen - heading_o is always first!");}
 	    $headinglevel = length ($tok->[1]);
-	    $state_heading 	  = @returnstack; # stack size +1 will be the index of this item as not inserted into stack yet!
+	    $state_heading 	  = @returnstack; # stack pos +1 = size will be the index of this item as not inserted into stack yet!
 	    $tok->[0]     = "H$headinglevel";
 	};
 
@@ -419,9 +462,9 @@ sub _parseheading {
 
 sub _parseelink { 
     my @returnstack;
-    my $inelink=0;
+    my $state_elink=0;
     my $elinkstart=0;
-    my $elinkurl = '';
+    my $elinkurl = 0;
     my $elinkws=0;
     while (my $tok=shift @_) {
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
@@ -430,24 +473,24 @@ sub _parseelink {
 
 	#if url not in elink then mark as bareurl or baremailto
 	#if in an elink then elink-url seek comment, seek white space... mark as elink-comment
-	if (!$inelink) { # NOT In an ELINK
+	if (!$state_elink) { # NOT In an ELINK
 	    $tok->[0] = 'BARE'.$tok->[0] if ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO'); 
 	    $tok->[0] = 'IGNORE' 	 if  $tok->[0] eq 'ELINK_C';  # mistake - not in link and so ignore tag
 	    if ($tok->[0] eq 'ELINK_O') {
 		$elinkstart=@returnstack;
-		$inelink=1;
+		$state_elink=1;
 	    }
 	    #say "not in elink: ",$tok->[0],$tok->[1];
 	    push @returnstack, $tok; # nothing to see move along please!
 	    next;
 	}
 
-	if ($inelink) {
+	if ($state_elink) {
 	    die "in an elink and found another elink open tag - don;t know what to do. :-(" if $tok->[0] eq 'ELINK_O';
 	    
 	    if ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO') {
-		$tok->[0] = 'ELINKCOMMENT' 	if $elinkurl ne '';# multiple url's are comments...'
-		$elinkurl = $tok->[0] 		if $elinkurl eq '';
+		$tok->[0] = 'ELINKCOMMENT' 	if $elinkurl; # ne ''; # multiple url's are comments...'
+		$elinkurl = 1 ;#		if $elinkurl eq '';
 	    }
 
 	    if ($tok->[0] eq 'WS') {
@@ -462,9 +505,9 @@ sub _parseelink {
 # 		    $returnstack[$_]->[0]='IGNORE';
 # 		}
 		$elinkstart=0;
-		$inelink=0;
+		$state_elink=0;
 		$elinkws=0;
-		$elinkurl='';
+		$elinkurl=0;
 	    }
 	    
 	    if ($tok->[0] eq 'ELINK_C') {
@@ -478,15 +521,15 @@ sub _parseelink {
 		$returnstack[$elinkstart+1]->[0] = 'ELINK'.$returnstack[$elinkstart+1]->[0];
 		$elinkstart=0;
 		$elinkws=0;
-		$elinkurl='';
-		$inelink=0;
+		$elinkurl=0;
+		$state_elink=0;
 		$tok->[0]='IGNORE';
 	    }
 	}
 	#say " in elink: ",$tok->[0],$tok->[1];
 	push @returnstack, $tok;
     }
-    if ($inelink) {
+    if ($state_elink) {
 	for ($elinkstart..@returnstack) {
 	    $returnstack[$_]->[0]='IGNORE';
 	}
@@ -621,6 +664,7 @@ sub _parsetemplate_simple {
 }
 
 sub reduce  {
+    _time("starting reduce") if $timed;
     my (@stack)=@_;
     my @returnstack;
 #     warn Dumper @stack;
@@ -647,18 +691,21 @@ sub reduce  {
 		@{ $tok->[1] } =reduce( @{ $tok->[1] } ); # dereference and recurse
 # 		say "recurse 2";
 		$last="ARRAYREF";
+		push @returnstack, $tok;
+		next;
 	    };
 	    if ($this eq $last and $last ne "ARRAYREF") {
-		if (!defined $tok->[1])	{warn Dumper @returnstack; say "reduce Undefined tok problem!"; $tok->[1]=""; };
+		if (!defined $tok->[1])	{warn Dumper @returnstack, $tok; say "reduce Undefined payload tok [1] problem!"; $tok->[1]=""; };
 		#if (!defined $returnstack[-1]->[1]) {warn Dumper @returnstack };
 		$returnstack[-1]->[1].=$tok->[1];  # don't merge array refs.
-# 		say $returnstack[$#returnstack]->[0]." merging..." 
+# 		say $returnstack[$#returnstack]->[0]." merging..."; 
 		next;
 	    };
 	push @returnstack, $tok;
 # 	warn Dumper $tok;
 	$last=$this;
 	};
+        _time("finishing reduce",-1) if $timed;
 	return @returnstack;
     }
 #    say "Reduction not needed - stack length ", @stack;
@@ -667,10 +714,12 @@ sub reduce  {
 		    @{ $stack[0]->[1] } =reduce( @{ $stack[0]->[1] } ); # dereference and recurse
     }
 #     warn Dumper @stack;
+    _time("finishing reduce - short stack",-1) if $timed;
     return @stack;
 }
 
 sub _simplify {
+        _time("starting simplify") if $timed;
     my $groups=shift;
     #warn Dumper  $groups;
     $groups->{UNKNOWN} ||= 'UNKNOWN'; # a little sanity check - prevents undefs in stack that are hard to trace due to spelling mistakes!
@@ -694,21 +743,42 @@ sub _simplify {
 	push @returnstack, $tok;   		# and return the renamed token
     }
     #warn Dumper @returnstack;
+    _time("finishing simplify",-1) if $timed;
+
     return @returnstack;
 };
 
 sub flatten  {
+       _time("starting flatten") if $timed;
+
     my (@stack) = @_;
     my @returnstack;
     while (my $tok = shift @stack) {
 	if ( ref( $tok->[1] ) eq 'ARRAY' ) {
 	    push @returnstack, [ $tok->[0],"" ];		# push marker token and empty string
-	    push @returnstack, flatten( @{$tok->[1]} );# deref and recurse
+	    push @returnstack,  flatten( @{$tok->[1]} ) ;# deref and recurse
 	    next;
 	}
     push @returnstack, $tok;
     }
+    _time("finishing flatten",-1) if $timed;
     return @returnstack;
 };
+
+use Time::HiRes qw(tv_interval gettimeofday);
+use Kpctools qw(commify);
+
+BEGIN { my $t0 = [gettimeofday]; my $indent=0; my $rt=0;
+ sub _time {
+    my $comment= shift;
+    if ($comment eq "--ignore--") {$rt=0;};
+    if (@_) {$indent += shift @_} else {$indent++};
+    my $intv=tv_interval($t0, [gettimeofday])*1000000;
+    $rt+=$intv;
+    say ":" x $indent."$comment ".commify($intv)," Time elapsed (rt) = ".commify($rt);;
+    $t0=[gettimeofday];
+} 
+}
+
 
 1;

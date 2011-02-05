@@ -101,7 +101,7 @@ my %o2 = (
     for (0..@stack-1) {
 # 	say $_;
 	my $tok= $stack[$_];
-# 	say $tok->[0],$tok->[1];
+	#say $tok->[0],$tok->[1];
 	if ($tok->[0] =~ /\d/) {
 	    map {  $_->[0] =~ s/BODYTEXT/HEADINGTEXT/ } @{ $tok->[1] };
 	#    $tok->[0] = 'IGNORE';     # don't want heading number anymore 

@@ -148,7 +148,7 @@ is( rendertext(MediaWikiParser::_parseheading(tokenise($test))) , $test, "#20 To
 ##*H3|WS|BODYWORD|NL|WS|UNKNOWN
 print "\n";
 $test=		qq{=== heading\n ===};
-$expected=	qq{H3|WS|BODYWORD|NL|WS|IGNORE}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE|WS|BODYWORD|NL|WS|IGNORE}; #rendertext(tokenise($test));
 is( rendertokens(MediaWikiParser::_parseheading(tokenise($test))) , $expected, "#21 Tokenising - balanced headings");
 #ignore warning for unrecognised token UNKNOWN here.
 
@@ -272,6 +272,17 @@ $expected=	qq<BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGN
 @stack = 	customparser($test, \%o1, \%o2);
 	is	(rendertokens(@stack), $expected, "#33 Testing customparser for headings 2...");
 
+$test=		qq<=l1=\n==l2==\n===l3===\n====l4====\n=====l5=====\n======l6======>;
+$expected=	qq<H1|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H3|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H4|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H5|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H6|IGNORE|BODYTEXT|IGNORE>;
+@stack = 	customparser($test, \%o1, \%o2);
+	is	(rendertokens(@stack), $expected, "#34 Testing customparser for all headings...");
+# 	say MediaWikiParser::rendertokensbartext(@stack);
+
+$test=		qq{Arana-Quirez, P., Isan-Chan, D., Clarke, S., et al, “Lausanne Occasional Paper 24: <nowiki>Cooperating in World Evangelization: A Handbook on Church/Para-Church Relationships.” <</nowiki>[http://www.lausanne.org/documents.html http://www.lausanne.org/documents.html]> (27<sup>th</sup> September, 2007).};
+@stack = 	customparser($test, \%o1, \%o2);
+	say MediaWikiParser::rendertokensbartext(@stack);
+
+
 say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
@@ -281,7 +292,7 @@ my @stack2 =@stack;
 # say MediaWikiParser::rendertokensbartext( parseheadingtext( @stack ) );
 
 $test=		qq<== hello __NOTOC__ world ==\n== hello '''bold''' world==>;
-$expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
+$expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
 @stack = 	customparser($test, \%o1, \%o2);
 	is	(rendertokens(@stack), $expected, "#34 Testing customparser for headings 3...");
 # say rendertokens  MediaWikiParser::flatten( @stack ) ;
@@ -321,13 +332,13 @@ sub make_parseheadingtext_iterator {
 	}
 }
 
-use Titlecase qw(titlecase);
-
-my $iterator=make_parseheadingtext_iterator ( @stack2 );
-my $correct;
-while ( my $tok = $iterator->() ) {
-    if ($tok->[0] eq 'HEADINGTEXT') { $correct = titlecase( $tok->[1] );
-    say "|".$tok->[1]."|";
-    say "    corrected to |".$correct."|" if $tok->[1] ne $correct;
-    }
-}
+# use Titlecase qw(titlecase);
+# 
+# my $iterator=make_parseheadingtext_iterator ( @stack2 );
+# my $correct;
+# while ( my $tok = $iterator->() ) {
+#     if ($tok->[0] eq 'HEADINGTEXT') { $correct = titlecase( $tok->[1] );
+#     say "|".$tok->[1]."|";
+#     say "    corrected to |".$correct."|" if $tok->[1] ne $correct;
+#     }
+# }
