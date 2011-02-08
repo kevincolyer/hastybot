@@ -38,9 +38,8 @@ sub tokenise {
 	    #	    'URL'
 	    # http regexp inspiration from http://www.wellho.net/resources/ex.php4?item=p212/regextra
 	    # tokenise some code and inspiration from MJD's Higher Order Perl...
-	    return ['NL',          $1]	if $text =~ /\G (\n+)		/gcx; # put above whites space
-	    return ['WS', 	   $1]	if $text =~ /\G (\s)		/gcx; # seems to gobble newlines
-
+	    return ['WS', 	   $1]	if $text =~ /\G ([^\S\n]+)		/gcx; # 
+# the code here is n faster than the uncommented htmlcode...
 # 	    my $save=pos($text); # record where we are in the regexp
 # 	    if ($text =~ m/\G (mailto|http|https|ftp) 			/gcxi) {
 # 		# to save on the two expensive regexp's below
@@ -89,9 +88,13 @@ sub tokenise {
 	    return ['BOLD',	   $1]  if $text =~ /\G (''')		/gcx;
 	    return ['ITALIC',	   $1]  if $text =~ /\G ('')		/gcx;
 	    return ['APOSTROPHY',  $1]  if $text =~ /\G (')		/gcx;
-	    # 	    'HEADING'
-	    return ['HEADING_O',   $1] 	if $text =~ /\G ^(={1,6})	/gcxm; #need m for multiline to enable anchors here...
-	    return ['HEADING_C',   $1] 	if $text =~ /\G (={1,6})	/gcx;
+	    return ['ASTERISK',    $1] 	if $text =~ /\G (\*)		/gcx; #need m for multiline to enable anchors here...
+	    return ['HASH',        $1] 	if $text =~ /\G (\#)		/gcx; #need m for multiline to enable anchors here...
+	    
+	    return ['BODYWORD',    $1]  if $text =~ /\G ([," \? \( \)]) /gcx; #catch all for optimisation sake - common punc that falls through
+
+	    return ['NL',          $1]	if $text =~ /\G (\n+)		/gcx; # put above whites space
+	    return ['HEADING_C',   $1] 	if $text =~ /\G (={1,6})	/gcx; #heading_o below...
 	   
 	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
 	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
@@ -101,7 +104,7 @@ sub tokenise {
 	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
 	    #	    'TABLE'
 	    return ['TABLE_O',     $1]	if $text =~ /\G (\{\|)		/gcx;
-	    return ['TABLE_C', 	   $1]	if $text =~ /\G ^(\|\})		/gcxm; # because |}} bar/templ_e is confused with table_c|ignore...
+	    return ['TABLE_C', 	   $1]	if $text =~ /\G (\|\})		/gcx; # because |}} bar/templ_e is confused with table_c|ignore...
 	    #	    'BODYTEXT'
 	    return ['BAR',         $1] 	if $text =~ /\G (\|)		/gcx; # because |}} bar/templ_e is confused
 	    #BULLET
@@ -118,18 +121,16 @@ sub tokenise {
 	    return ['TEMPL_C',     $1] 	if $text =~ /\G	(\}\})		/gcx;
 
 	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>)		/igcx;
-	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>)		/igcx;
+	    return ['PRE_C',       $1] 	if $text =~ /\G	(<\/pre>)	/igcx;
 	    #	    'HTML'
 	    return ['BR',          $1] 	if $text =~ /\G	(<br>)		/igcx;  
 	    return ['HR',          $1] 	if $text =~ /\G	(<hr>)		/igcx;  
-	    return ['HTML_O',      $1] 	if $text =~ /\G	(<[a-z]+[^\/]*?>)	/gcxi;
-	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\w*>)	/gcx;
 	    return ['HTML_SINGLE', $1]	if $text =~ /\G(<\w*\/?>)	/gcx;
+	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcxi;
+	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\w*>)	/gcx;
 
 	    return ['UNKNOWN',     $1] 	if $text =~ /\G (.)		/gcx;
-	    #groups
-	    #redo TOKEN if 
-	    #only if at then end... drop through... warn "Unmatched token! Something is wrong! at ",pos($text);
+	    
 	    return undef;
 	}
     };
@@ -172,13 +173,18 @@ sub tokenise {
 	# HTML_BODY	=> 'IGNORE',
 
 	# process HEADINGS - moved to _parseheading
-
-
-	# 
-	# some optimisation to reduce tokens
+	
+	if (!@stack and $tok->[0] eq "HEADING_C") {$tok->[0]="HEADING_O"}
 	$this=$tok->[0];
-	warn "UNKOWN token encountered |".$tok->[1]."|" if ($this eq 'UNKNOWN' and $debug);
-	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' or $this eq 'WS')) {
+	if ($last eq "NL") { # this logic is faster than RE with m modifier... MUCH - saves >50% ?
+	    $tok->[0]='BULLET' 	   if $this eq 'ASTERISK';
+	    $tok->[0]='NUMLIST'    if $this eq 'HASH';
+	    $tok->[0]='HEADING_O'  if $this eq 'HEADING_C';
+	    $tok->[0]='PRE_SINGLE' if $this eq 'WS'; # NOTE WS can contain multplie spaces - pre is one following NL
+	}
+	# some optimisation to reduce tokens
+	warn "UNKNOWN token encountered |".$tok->[1]."|" if ($this eq 'UNKNOWN' and $debug);
+	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' )) { # or $this eq 'WS'
 	    $stack[-1]->[1].=$tok->[1];
 	    next;
 	}

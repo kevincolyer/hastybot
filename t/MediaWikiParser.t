@@ -115,7 +115,7 @@ is( rendertokens(tokenise($test)) , $expected, "#16 Tokenising - NEWLINES");
 
 print "\n";
 $test=		qq{   hello \n\n world   \n};
-$expected=	qq{WS|BODYWORD|WS|NL|WS|BODYWORD|WS|NL}; #rendertext(tokenise($test));
+$expected=	qq{WS|BODYWORD|WS|NL|PRE_SINGLE|BODYWORD|WS|NL}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#17 Tokenising - Whitespace");
 
 # === heading ===
@@ -148,7 +148,7 @@ is( rendertext(MediaWikiParser::_parseheading(tokenise($test))) , $test, "#20 To
 ##*H3|WS|BODYWORD|NL|WS|UNKNOWN
 print "\n";
 $test=		qq{=== heading\n ===};
-$expected=	qq{IGNORE|WS|BODYWORD|NL|WS|IGNORE}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE|WS|BODYWORD|NL|PRE_SINGLE|IGNORE}; #rendertext(tokenise($test));
 is( rendertokens(MediaWikiParser::_parseheading(tokenise($test))) , $expected, "#21 Tokenising - balanced headings");
 #ignore warning for unrecognised token UNKNOWN here.
 

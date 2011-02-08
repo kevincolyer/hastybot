@@ -272,6 +272,7 @@ sub getnextpage {
 
 sub getpage {
     my ($page)=@_;
+    die "No page given to sub getpage!" if !defined($page) ;
     say "\nRetrieving Page [[$page]]" if $opts{verbose};
     my $edit = $bot->get_text($page);
     die "Couldn't retrieve text of [[$page]]!" if (ref($edit) eq "SCALAR" && $edit==2);  #bomb out if error fetching...

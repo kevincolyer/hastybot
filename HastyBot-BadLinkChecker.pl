@@ -26,17 +26,19 @@ my $index=0;
 my $limiter=$index+20;
 #$opts{whatpages}='all';
 # my @allpages= getallpages();#re-loads the listo
-my @allpages= qw(Sandbox); # YWAM_Websites_List # only one page please!
+my @pages= qw(Sandbox); # YWAM_Websites_List # only one page please!
 
 use LWP; # Loads all important LWP classes
 my ($d,$m,$y) = (localtime)[3,4,5] ;
 my $dmy = sprintf ('%d-%d-%d', $d, $m+1, $y+1900); 
 
-
+# TODO probably should look in Category:!BadLinks for pages - check each bad link in there
+# this MWBOT call: get_pages_in_category($category_name[,$options_hashref])
+# then go looking for more! (perhaps new pages or all pages?) Run once a month?
 
 say "Processing pages...";
-while (my $edit = getpage($allpages[$index])) {
-    my $page=$allpages[$index];
+while (my $edit = getpage($pages[$index])) {
+    my $page=$pages[$index];
     say "\n$index: [[$page]]";
     $index++;
     my @stack=		parsebadlinks ( $edit );
