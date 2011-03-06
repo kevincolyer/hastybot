@@ -196,12 +196,19 @@ is( rendertokens( tokenise($test)), $expected, "External link and mailto tokenis
 print "\n";
 is( rendertext( parse($test)), $test, "External link and mailto tokeniser - rendering fidelity");
 
+$test=		q<{{http://kevin.example.com}} this is bodytext>;
+$expected=	qq{TEMPL_O|URL|TEMPL_C|WS|BODYWORD|WS|BODYWORD|WS|BODYWORD};
+is( rendertokens( tokenise($test)), $expected, "URL inside a template test");
+is( rendertokens( parse($test)), "IGNORE|BODYTEXT", "URL inside a template test part2");
+print "\n";
+
 print "========================================\n";
 #now for something more interesting - test of a heading parser...
 
 my %o1 = (
     IGNORE 	=> 'IGNORE', #might always need this? 
     UNKNOWN	=> 'BODYTEXT', #might always need this? 
+    TEMPLATE    => 'IGNORE',
     BODYWORD 	=> 'BODYTEXT',    
     BAR 	=> 'BODYTEXT',        
     POINT 	=> 'BODYTEXT',       

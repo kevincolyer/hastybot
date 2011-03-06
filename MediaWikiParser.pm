@@ -38,44 +38,24 @@ sub tokenise {
 	    #	    'URL'
 	    # http regexp inspiration from http://www.wellho.net/resources/ex.php4?item=p212/regextra
 	    # tokenise some code and inspiration from MJD's Higher Order Perl...
-	    return ['WS', 	   $1]	if $text =~ /\G ([^\S\n]+)		/gcx; # 
-# the code here is n faster than the uncommented htmlcode...
-# 	    my $save=pos($text); # record where we are in the regexp
-# 	    if ($text =~ m/\G (mailto|http|https|ftp) 			/gcxi) {
-# 		# to save on the two expensive regexp's below
-# 		pos($text)=$save;
-# 		return ['MAILTO',      $1] 	if $text =~ /\G (
-# 							    (?:mailto\:)
-# 							    (?:\/\/)?		# optional
-# 							    (?:[^\s]+)		# before @
-# 							    (?:\@)			# must have an @
-# 							    (?:(?:[^\s\]\.])+)	# atleast one word
-# 							    (?:\.(?:[^\s\]])+)?	# optional . and word
-# 							    )		/gcxi;
-# 		return ['URL',         $1] 	if $text =~ /\G (
-# 							    (?:http|https|ftp)
-# 							    (?:\:\/\/)  
-# 							    (?:[^\:\/\s\]]+)        # server
-# 							    (?:\:\d+)?              # port - optional
-# 							    (?:\/[^\#\s]+)?         # page - optional
-# 							    (?:\#(?:\S*))?          # place - optional
-# 								    )	/gcxi;
-# 		}
+ 
+	    return ['WS', 	   $1]	if $text =~ /\G (\h+)		/gcx; # \h is horiz ws = space tab but not newline
+
 	    return ['MAILTO',      $1] 	if $text =~ /\G (
 							    (?:mailto\:)
 							    (?:\/\/)?		# optional
 							    (?:[^\s]+)		# before @
 							    (?:\@)			# must have an @
-							    (?:(?:[^\s\]\.])+)	# atleast one word
-							    (?:\.(?:[^\s\]])+)?	# optional . and word
+							    (?:(?:[^\s\]\.\}])+)	# atleast one word
+							    (?:\.(?:[^\s\]\}])+)?	# optional . and word
 							    )		/gcxi;
 	    return ['URL',         $1] 	if $text =~ /\G (
 							(?:http|https|ftp)
 							(?:\:\/\/)  
-							(?:[^\:\/\s\]]+)        # server
+							(?:[^\:\/\s\]\}]+)        # server
 							(?:\:\d+)?              # port - optional
-							(?:\/[^\#\s\]]+)?         # page - optional
-							(?:[\/|\#](?:[^\]|\S]*))?          # place - optional need ] here?
+							(?:\/[^\#\s\]\}]+)?         # page - optional
+							(?:[\/|\#](?:[^\]\}|\S]*))?          # place - optional need ] here?
 								)	/gcxi;
 
 	    return ['BODYWORD',    $1] 	if $text =~ /\G (\w+)		/gcx;
@@ -172,18 +152,20 @@ sub tokenise {
 	# TODO - inside html....
 	# HTML_BODY	=> 'IGNORE',
 
-	# process HEADINGS - moved to _parseheading
-	
-	if (!@stack and $tok->[0] eq "HEADING_C") {$tok->[0]="HEADING_O"}
 	$this=$tok->[0];
+	#warn "UNKNOWN token encountered |".$tok->[1]".| following |$last|" if ($this eq 'UNKNOWN' and $debug);
+	
+	# process HEADINGS - moved to _parseheading
+	if (!@stack and $tok->[0] eq "HEADING_C") {$tok->[0]="HEADING_O"}
+	
 	if ($last eq "NL") { # this logic is faster than RE with m modifier... MUCH - saves >50% ?
 	    $tok->[0]='BULLET' 	   if $this eq 'ASTERISK';
 	    $tok->[0]='NUMLIST'    if $this eq 'HASH';
 	    $tok->[0]='HEADING_O'  if $this eq 'HEADING_C';
 	    $tok->[0]='PRE_SINGLE' if $this eq 'WS'; # NOTE WS can contain multplie spaces - pre is one following NL
 	}
+
 	# some optimisation to reduce tokens
-	warn "UNKNOWN token encountered |".$tok->[1]."|" if ($this eq 'UNKNOWN' and $debug);
 	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' )) { # or $this eq 'WS'
 	    $stack[-1]->[1].=$tok->[1];
 	    next;
@@ -223,12 +205,12 @@ sub rendertokensbartext {
     while (my $tok = shift @stack) {
 	$text.="\n" if $first++;
 	if (ref( $tok->[1] ) eq 'ARRAY') {
-	    $text.="\n".$tok->[0].":\n"; #because we want to see the token
-	    $text.=rendertokensbartext( @{ $tok->[1] } ); # recurse on dereferenced array
-	    $text.="\n"; # show the tokens are a group.
+	    $text.="\n".$tok->[0].":\n"; 			# because we want to see the token
+	    $text.=rendertokensbartext( @{ $tok->[1] } ); 	# recurse on dereferenced array
+	    $text.="\n"; 					# show the tokens are a group.
 	} else {
 	    $len= " " x ( 20-length( $tok->[0] ) );
-	    $text.=$tok->[0].$len.$tok->[1];#.snippet( $tok->[1] , 60);
+	    $text.=$tok->[0].$len.$tok->[1];			# .snippet( $tok->[1] , 60);
 	}
     }
     return $text;
@@ -245,8 +227,8 @@ sub _render {
 	$text.=$join if $first++;
 # 	warn Dumper $tok;
 	if (ref( $tok->[1] ) eq 'ARRAY') {
-	    $text.=$tok->[0].$join if $which==0; # if rendering tokens then we want to see the token of array ref
-	    $text.=_render( $join, $which, @{ $tok->[1] } ); # recurse using a dereferenced stack 
+	    $text.=$tok->[0].$join if $which==0; 		# if rendering tokens then we want to see the token of array ref
+	    $text.=_render( $join, $which, @{ $tok->[1] } ); 	# recurse using a dereferenced stack 
 	} else {
 	    $text.= $tok->[$which];
 	}
@@ -263,10 +245,10 @@ sub parse {
 }
     
 sub make_iterator {
-    my (@stack) = @_  ; # process and flatten stack
+    my (@stack) = @_  ; 
     return sub {
-	return undef if !@stack; # if nothing more return undef
-	return shift @stack ; # otherwise return a token and reduce stack
+	return undef if !@stack; 	# if nothing more return undef
+	return shift @stack ; 		# otherwise return a token and reduce stack
 	}
 }
 
@@ -275,30 +257,32 @@ sub customparser {
     _time("starting custom parser") if $timed;
 
     my ($wikitext,$o1,$o2, @parsers)=@_;
+
+    # tokenising
     my @stack=	tokenise($wikitext);
+
+    # continue parsing using chain of sub parsers, including custom parsers if reqd.
     _time("starting chained subparsers") if $timed;
     if (!@parsers) { @parsers = qw(_parseheading _parsetemplate_simple _parseelink _parseilink_simple _parsetable_simple) };
-    # parse using a chain of sub parsers...
-    no strict; # needed for below
-    map { @stack =  &$_(@stack) } @parsers; # &$_() creates a sub from the string value in $_
-    strict;
+    no strict; 					# needed for below
+    map { @stack =  &$_(@stack) } @parsers; 	# &$_() creates a sub from the string value in $_
+    use strict;
     _time("finishing chained subparsers",-1) if $timed;
-#warn Dumper @stack;
-    # optimise 	#1 - group tokens, two passes
+    
+    # optimise 					#1 - group tokens, two passes
     @stack=     _simplify($o1, @stack);
     @stack=     _simplify($o2, @stack);
-#warn Dumper @stack;
-    # optimise 	#2 - combine adjacant identical tokens
+
+    # optimise 					#2 - combine adjacant identical tokens
     @stack=	reduce(@stack);
 
-    # sanity check
-#     if (rendertext(@stack) ne $wikitext) {warn Dumper @stack}; 
+    # sanity check - if parser fails we want to make sure we don't mess up on live wiki's
     if (rendertext(@stack) ne $wikitext) { 
 	warn Dumper @stack;
 	die "Rendering comparison of parsed wikitext failed - critical error. Stopping."; 
     }
-    _time("finished custom parser",-1) if $timed;
 
+    _time("finished custom parser",-1) if $timed;
     return @stack;
 }
 
@@ -388,11 +372,11 @@ sub _testparser {
 	UNKNOWN 	=> 'IGNORE', 
     );
     my @parsers = qw(	_parseheading 
-			_parsetemplate_simple 
+			_parsetemplate_ignore 
 			_parseelink
 			_parseilink_simple
 			_parsetable_simple	);
-    return customparser(@_, \%o1, \%o2, @parsers);
+    return customparser(@_, \%o1, \%o2, @parsers); #calling like this not good - implicit assumption that first arg is scalar ($wikitext)
 }
 
 sub _parseheading { 
@@ -663,12 +647,38 @@ sub _parsetemplate_simple {
 	    if ($templatedepth==0) {   # ignore close template if no prev. matching
 		$tok->[0]='IGNORE'}
 	    else { $templatedepth--; $tok->[0]='IGNORE'; }      # close if open ascend a level
-	} elsif ($templatedepth!=0) {$tok->[0]='IGNORE';};
+	} elsif ($templatedepth!=0) {$tok->[0]='TEMPLATE';};
 	push @returnstack, $tok;
     };
     return @returnstack;
 }
 
+sub _parsetemplate_ignore {
+    my $templatedepth=0;
+    my (@stack)=@_;
+    my @returnstack;
+    while (@stack) {
+	my $tok = shift @stack;
+	if ( ref( $tok->[1] ) eq 'ARRAY')  {
+	    @{ $tok->[1] } = _parsetemplate_simple( @{ $tok->[1] } ) ; # dereference and recurse
+	}
+
+	my $this=$tok->[0];
+	if ($this eq 'TEMPL_O') {
+	    $templatedepth++;
+	    $tok->[0]='IGNORE';
+	    push @returnstack, $tok;
+	    next
+	};
+	if ($this eq 'TEMPL_C') {
+	    if ($templatedepth==0) {   # ignore close template if no prev. matching
+		$tok->[0]='IGNORE'}
+	    else { $templatedepth--; $tok->[0]='IGNORE'; }      # close if open ascend a level
+	} elsif ($templatedepth!=0) {$tok->[0]='IGNORE';};
+	push @returnstack, $tok;
+    };
+    return @returnstack;
+}
 sub reduce  {
     _time("starting reduce") if $timed;
     my (@stack)=@_;

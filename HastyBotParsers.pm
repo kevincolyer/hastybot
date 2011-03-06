@@ -55,6 +55,7 @@ sub parseheadingtext {
     HTML_SINGLE	=> 'IGNORE', 
 
     # may not want these but here for now - ignored in pass2
+    TEMPLATE    => 'IGNORE',
     ELINK_O	=> 'ELINK',     
     ELINK_C 	=> 'ELINK',  
     ELINKMAILTO	=> 'ELINKMAIILTO',
@@ -89,7 +90,7 @@ my %o2 = (
     URL 	=> 'IGNORE',
 );
     my @parsers = qw(	_parseheading 
-			_parsetemplate_simple 
+			_parsetemplate_ignore 
 			_parseelink
 			_parseilink_simple
 			_parsetable_simple	);
@@ -160,6 +161,7 @@ sub parsebadlinks {
     ILINK_C 	=> 'IGNORE',   
     ILINK_PAGE	=> 'IGNORE',		# for now
     ILINK_COMMENT=> 'BODYTEXT',		# for now
+    TEMPLATE    => 'TEMPLATE',
 
 );
 my %o2 = (
