@@ -290,11 +290,20 @@ $test=		qq{Arana-Quirez, P., Isan-Chan, D., Clarke, S., et al, “Lausanne Occas
 	say MediaWikiParser::rendertokensbartext(@stack);
 
 
+
 say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
 @stack = customparser($test, \%o1, \%o2); 
 my @stack2 =@stack;
+
+my $iter = MediaWikiParser::walkstream(@stack);
+my $items;
+while (my $tok = $iter->()) {
+    $items++; #say "walkstream: ",$tok->[0];
+}
+say "Items: $items";
+is(@stack,@stack2,"compare walkstream stacks to see if stack is untouched");
 
 # say MediaWikiParser::rendertokensbartext( parseheadingtext( @stack ) );
 
@@ -338,6 +347,8 @@ sub make_parseheadingtext_iterator {
 	return shift @stack; # otherwise return a token and reduce stack
 	}
 }
+
+
 
 # use Titlecase qw(titlecase);
 # 

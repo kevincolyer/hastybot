@@ -784,6 +784,33 @@ sub reduce_old  {
     return @stack;
 }
 
+sub NEXTVAL 	{ $_[0]->() 	}
+sub Iterator (&){ return $_[0] 	}
+
+sub walkstream (\@) { #note as of now this eats the incoming stream...
+    push my @streams , walkarray(shift @_) ;
+    return Iterator {
+	while (@streams) { 
+	    my $tok = NEXTVAL( $streams[0] ); # get next val from 1st iterator in queue
+	    if (!defined $tok) {shift @streams; next;} # end of iterator, get new one
+	    if (ref $tok->[1] eq 'ARRAY') {unshift @streams, walkarray( $tok->[1] )}; # it is a new level so unshift it and work on new level next time
+	    return $tok;
+	}
+    return undef;
+    }
+}
+
+sub walkarray (\@) {
+    my $array=shift;
+    my $index=0;
+    return Iterator {
+	return $array->[$index++] if $index< scalar @{$array};
+	return undef;
+    }
+}
+
+
+
 sub _simplify {
         _time("starting simplify") if $timed;
     my $groups=shift;
