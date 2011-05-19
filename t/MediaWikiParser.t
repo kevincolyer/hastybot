@@ -14,7 +14,7 @@ use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatt
 
 say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
-use Test::More qw( no_plan ); #tests => 3;
+use Test::More tests => 39 ; #tests => 3;
 
 $MediaWikiParser::debug=0; # make loud
 
@@ -81,7 +81,7 @@ is( rendertokens(tokenise($test)) , $expected, "#11 Tokenising - html comments")
 ##*NOWIKI|IGNORE|NOWIKI|BODYWORD
 print "\n";
 $test=		qq{<nowiki>[[DTS]]<!--showme</nowiki>-->};
-$expected=	qq{IGNORE}; #NOWIKI_O|IGNORE|NOWIKI_C|IGNORE}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE|NOWIKI|NOWIKI|NOWIKI|NOWIKI|NOWIKI|IGNORE}; #NOWIKI_O|IGNORE|NOWIKI_C|IGNORE}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#12 Tokenising - NOWIKI comments");
 
 # <nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>
@@ -89,7 +89,7 @@ is( rendertokens(tokenise($test)) , $expected, "#12 Tokenising - NOWIKI comments
 ##*NOWIKI|IGNORE|NOWIKI|UNKNOWN|NOWIKI|NOWIKI
 print "\n";
 $test=		qq{<nowiki>[[DTS]]<!-- hello --></nowiki></nowiki><nowiki></nowiki>};
-$expected=	qq{IGNORE}; #NOWIKI_O|IGNORE|NOWIKI_C|IGNORE|NOWIKI_O|NOWIKI_C}; #rendertext(tokenise($test));
+$expected=	qq{IGNORE|NOWIKI|NOWIKI|NOWIKI|NOWIKI|NOWIKI|NOWIKI|NOWIKI|NOWIKI|IGNORE}; #NOWIKI_O|IGNORE|NOWIKI_C|IGNORE|NOWIKI_O|NOWIKI_C}; #rendertext(tokenise($test));
 is( rendertokens(tokenise($test)) , $expected, "#13 Tokenising - NOWIKI comments");
 
 # <!--[[DTS]]<nowiki>[[DTS]]Insert non-formatted text here</nowiki>-->

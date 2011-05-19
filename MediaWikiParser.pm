@@ -32,7 +32,7 @@ sub tokenise {
     my $state_htmlcom=0;
     my @state_html; # state variable is a stack... perhaps we need a stack here too?
 
-
+    #study $text;
     my $tokens = sub {
 	TOKEN: { 
 	    #	    'URL'
@@ -124,29 +124,33 @@ sub tokenise {
 	# $state_nowiki $state_htmlcom
 	# htmlcomments 
 	say $tok->[0]," " x (20-length($tok->[0])),"| ".$tok->[1] if $debugtokens;
+	
 	if ($tok->[0] eq 'HTMLCOM_O') {
-	    if ($state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$state_htmlcom= 1; $tok->[0] = 'IGNORE';} 
+	    if   ( $state_nowiki  or  $state_htmlcom ) 	
+		 { $tok->[0] = 'IGNORE' }
+	    else { $state_htmlcom = 1; $tok->[0] = 'IGNORE' } 
 	};
 	if ($tok->[0] eq 'HTMLCOM_C') {
-	    if ($state_nowiki or !$state_htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$state_htmlcom=0; $tok->[0] = 'IGNORE';}  
+	    if   ( $state_nowiki  or !$state_htmlcom ) 	
+		 { $tok->[0] = 'IGNORE' }
+	    else { $state_htmlcom = 0; $tok->[0] = 'IGNORE' }  
 	};
-	#nowiki comments
+	# nowiki tags can be thrown away 
 	if ($tok->[0] eq 'NOWIKI_O') {
-	    if ($state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$state_nowiki=1; $tok->[0] = 'IGNORE';} 
+	    if   ( $state_nowiki  or  $state_htmlcom ) 
+		 { $tok->[0] = 'IGNORE' }
+	    else { $state_nowiki = 1; $tok->[0] = 'IGNORE' } 
 	};
 	if ($tok->[0] eq 'NOWIKI_C') {
-	    if (!$state_nowiki or $state_htmlcom) {$tok->[0] = 'IGNORE'}
-	    else {$state_nowiki=0; $tok->[0] = 'IGNORE';}
+	    if   ( !$state_nowiki or  $state_htmlcom ) 
+		 { $tok->[0] = 'IGNORE' }
+	    else { $state_nowiki = 0; $tok->[0] = 'IGNORE' }
 	};
 
-	# if in a comment - mark text as ignored... 
-	if ( $state_nowiki+$state_htmlcom ) { #removed below as redundent - unless I want the tags - prob not...
-	    $tok->[0] = 'IGNORE'; #and $tok->[0] !~ /NOWIKI.*/ and $tok->[0] !~ /HTMLCOM.*/
-	}
+	$tok->[0] = 'IGNORE' if $state_htmlcom; # if in a comment - mark text as ignored... 
 
+	$tok->[0] = 'NOWIKI' if $state_nowiki>1; # if in a nowiki mark as NOWIKI for user to do what they want with it
+	$state_nowiki++ if $state_nowiki;
 	# now comments are done we can get on with some other things and not worry about comments
 
 	# TODO - inside html....
@@ -156,7 +160,7 @@ sub tokenise {
 	#warn "UNKNOWN token encountered |".$tok->[1]".| following |$last|" if ($this eq 'UNKNOWN' and $debug);
 	
 	# process HEADINGS - moved to _parseheading
-	if (!@stack and $tok->[0] eq "HEADING_C") {$tok->[0]="HEADING_O"}
+	
 	
 	if ($last eq "NL") { # this logic is faster than RE with m modifier... MUCH - saves >50% ?
 	    $tok->[0]='BULLET' 	   if $this eq 'ASTERISK';
@@ -167,14 +171,15 @@ sub tokenise {
 
 	# some optimisation to reduce tokens
 	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' )) { # or $this eq 'WS'
-	    $stack[-1]->[1].=$tok->[1];
+	    $stack[-1][1].=$tok->[1];
 	    next;
 	}
-	push @stack, $tok;
-	$last=$this;
+        push @stack, $tok;
+	$last = $this;
     }
     _time("finishing tokeniser",-1) if $timed;
     #warn Dumper @stack;
+    if ($stack[0][0] eq "HEADING_C") {$stack[0][0]="HEADING_O"} # because lexer only emit's HEADING_O...
     return @stack;
 }
 
@@ -273,9 +278,10 @@ sub customparser {
     @stack=     _simplify($o1, @stack);
     @stack=     _simplify($o2, @stack);
 
+
     # optimise 					#2 - combine adjacant identical tokens
     @stack=	reduce(@stack);
-
+    
     # sanity check - if parser fails we want to make sure we don't mess up on live wiki's
     if (rendertext(@stack) ne $wikitext) { 
 	warn Dumper @stack;
@@ -679,8 +685,52 @@ sub _parsetemplate_ignore {
     };
     return @returnstack;
 }
-sub reduce  {
+sub reduce  { # merges two identical tokens into one token
     _time("starting reduce") if $timed;
+#     if (@_ == 1) { 
+# 	_time("finishing reduce - short stack",-1) if $timed;
+# 	return @_
+#     }
+    my (@stack)=@_;
+    my $last="n/a";
+    my @returnstack;
+#     warn Dumper @stack;
+#     my $leng =@stack;
+#     say $leng;
+    
+    while (my $tok=shift @stack) {
+	if (!defined $tok->[1])	{
+	    warn Dumper @returnstack, $tok; 
+	    say "reduce Undefined payload tok [1] problem!"; 
+	    $tok->[1]="";
+	};
+	    
+# 	    say "$last:".$tok->[1], ref($tok->[1]);
+# 	    say "this:$this: last:$last:";
+	if (ref($tok->[1]) eq 'ARRAY') {	# if ref then descend
+	    @{ $tok->[1] } =reduce( @{ $tok->[1] } ); # dereference and recurse
+# 		say "recurse 2";
+	    $last="ARRAYREF"; # don't merge array refs.
+	    push @returnstack, $tok;
+	    next;
+	};
+	my $this=$tok->[0];
+	if ($this eq $last and $last ne "ARRAYREF") {
+	    #if (!defined $returnstack[-1]->[1]) {warn Dumper @returnstack };
+	    $returnstack[-1][1].= $tok->[1];  
+#  		say $returnstack[-1][0]." merging..."; 
+	    next;
+	};
+	push @returnstack, $tok;
+# 	warn Dumper $tok;
+	$last=$this;
+    };
+    _time("finishing reduce",-1) if $timed;
+    return @returnstack;
+} # old was 470535 to 436,569 = 35k..........now 460821 to 449214 = 11K
+
+sub reduce_old  {
+    #_time("starting reduce") if $timed;
     my (@stack)=@_;
     my @returnstack;
 #     warn Dumper @stack;

@@ -15,7 +15,7 @@ package Titlecase;
 use Exporter;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
-our $VERSION     = 0.99;
+our $VERSION     = 1;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
 our @EXPORT_OK   = qw(titlecase isanacronym ucfirstimproved possibleacronym);
@@ -24,6 +24,22 @@ our @EXPORT_OK   = qw(titlecase isanacronym ucfirstimproved possibleacronym);
 #lower cases all and then ignoring starting punctuation, uppercase the first word of the string of which each word has been filtered for words that should not be titlecased and then titlecasesd using ucfirstimproved (which ignores initial punctuation in order to correctly punctuate quoted strings). Removes multiple spaces too for good measure.
 
 #English only!
+
+my $acronym_page="User:HastyBot/Acronyms";
+use HastyBot qw(getpage);
+my $text=getpage($acronym_page); # HastyBot performs log in for us...
+my ($one, $two);
+die "No Acronyms found - error on page [[$acronym_page]]." if $text eq "";
+my %acr;
+foreach (split /\n/, $text) {
+  next if $_ !~ /^\*/;
+  s/\*//; # sanitise to alphanum and bar.
+  s/[^a-z0-9\|]//i;
+  ($one, $two) = split /\|/;
+  $one=lc($one);
+  warn "Acronymn $one already defined!" if defined $acr{$one};
+  $acr{$one}=$two;
+}; 
 
 sub titlecase {
     my ($s) = @_;
@@ -42,9 +58,9 @@ sub titlecase {
     # two word alternations
     $s =~ s/(Appendix )([a-z]|[IVXivx]+)/$1.uc($2)/ge; # get Appendix A or I, II, VI etc
     $s =~ s/([IVXivx]+)([\.:]\s)/uc($1).$2/ge; # get Appendix A or I, II, VI etc
-    $s =~ s/wise school/WISE School/ig; # corner case 
 
     # corner cases...
+    $s =~ s/wise school/WISE School/ig; # corner case 
     $s =~ s/\.\s+it/. It/g; # for some reason there are sentences in headings... this is a corner case    
     $s =~ s/\.\s+the/. The/g; # for some reason there are sentences in headings... this is a corner case    
     $s =~ s/Call2All/Call2All/ig; # corner case 
@@ -75,66 +91,67 @@ sub _titlecasemangler2 {
 };
 
 sub isacronym {
-    my %acr = (
-    http	=> 'http',
-    https	=> 'https',
-    ftp		=> 'ftp',
-    mailto	=> 'mailto',
-    html	=> 'HTML',
-    rss		=> 'RSS',
-    css		=> 'CSS',
-    cms		=> 'CMS',
-    php		=> 'PHP',
-    pr		=> 'PR',
-    welc	=> 'WELC',
-    welt	=> 'WELT',
-    ywam 	=> 'YWAM',
-    ywamer 	=> 'YWAMer',
-    ywamers	=> 'YWAMers',
-    dts		=> 'DTS',
-    cdts	=> 'CDTS',
-    bls		=> 'BLS',
-    soe		=> 'SOE',
-    sofm	=> 'SOFM',
-    spld	=> 'SPLD',
-    uofn	=> 'UofN',
-    ywamkb	=> 'YWAMKB',
-    kb		=> 'KB',
-    isbn	=> 'ISBN',
-    pdf		=> 'PDF',
-    su		=> 'su',
-    sudo	=> 'sudo',
-    pdfs	=> 'PDFs',
-    uk		=> 'UK',
-    hiv		=> 'HIV',
-    aids	=> 'AIDS',
-    dfh		=> 'DFH',
-    df1		=> 'DF1',
-    awol	=> 'AWOL',
-    glt		=> 'GLT',
-    nlt		=> 'NLT',
-    blt		=> 'BLT',
-    elf		=> 'ELF',
-    xml		=> 'XML',
-    crit	=> 'CRIT',
-    dna		=> 'DNA',
-    agm		=> 'AGM',
-    swot	=> 'SWOT',
-    faq		=> 'FAQ',
-    kbian	=> 'KBian',
-    xxx		=> 'XXX',
-    xp		=> 'XP',
-    diy		=> 'DIY',
-    dvd		=> 'DVD',
-#    call2all	=> 'Call2All',
-    url		=> 'URL',
-    mgm		=> 'MGM',
-    itunes	=> 'iTunes',
-    iphone	=> 'iPhone',
-    ipod	=> 'iPod',
-    knowledgebase => 'KnowledgeBase',
-    ywamknowledgebase => 'YWAMKnowledgeBase',
-    );
+#     my %acr = (
+#     http	=> 'http',
+#     https	=> 'https',
+#     ftp		=> 'ftp',
+#     mailto	=> 'mailto',
+#     html	=> 'HTML',
+#     rss		=> 'RSS',
+#     css		=> 'CSS',
+#     cms		=> 'CMS',
+#     php		=> 'PHP',
+#     pr		=> 'PR',
+#     welc	=> 'WELC',
+#     welt	=> 'WELT',
+#     ywam 	=> 'YWAM',
+#     ywamer 	=> 'YWAMer',
+#     ywamers	=> 'YWAMers',
+#     dts		=> 'DTS',
+#     cdts	=> 'CDTS',
+#     bls		=> 'BLS',
+#     soe		=> 'SOE',
+#     sofm	=> 'SOFM',
+#     spld	=> 'SPLD',
+#     sbcw	=> 'SBCW',
+#     uofn	=> 'UofN',
+#     ywamkb	=> 'YWAMKB',
+#     kb		=> 'KB',
+#     isbn	=> 'ISBN',
+#     pdf		=> 'PDF',
+#     su		=> 'su',
+#     sudo	=> 'sudo',
+#     pdfs	=> 'PDFs',
+#     uk		=> 'UK',
+#     hiv		=> 'HIV',
+#     aids	=> 'AIDS',
+#     dfh		=> 'DFH',
+#     df1		=> 'DF1',
+#     awol	=> 'AWOL',
+#     glt		=> 'GLT',
+#     nlt		=> 'NLT',
+#     blt		=> 'BLT',
+#     elf		=> 'ELF',
+#     xml		=> 'XML',
+#     crit	=> 'CRIT',
+#     dna		=> 'DNA',
+#     agm		=> 'AGM',
+#     swot	=> 'SWOT',
+#     faq		=> 'FAQ',
+#     kbian	=> 'KBian',
+#     xxx		=> 'XXX',
+#     xp		=> 'XP',
+#     diy		=> 'DIY',
+#     dvd		=> 'DVD',
+# #    call2all	=> 'Call2All',
+#     url		=> 'URL',
+#     mgm		=> 'MGM',
+#     itunes	=> 'iTunes',
+#     iphone	=> 'iPhone',
+#     ipod	=> 'iPod',
+#     knowledgebase => 'KnowledgeBase',
+#     ywamknowledgebase => 'YWAMKnowledgeBase',
+#     );
     my ($key) = @_;
     $key=~ m/([^a-z]*)([a-z]*)(.*)/i; #place before, middle and after into search variables
     $key=lc($2);
