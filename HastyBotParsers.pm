@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-use 5.10.0;
+use 5.10.1;
 use strict;
 # licence - perl artistic licence...
 use utf8;
@@ -10,7 +10,7 @@ use Data::Dumper::Simple;
 
 package HastyBotParsers;
 use lib "/home/kevin/Dropbox/development/modules";
-use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten reduce make_iterator);
+use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten mergetokens make_iterator);
 #say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
 
 use Exporter;
@@ -94,15 +94,15 @@ my %o2 = (
 			_parseelink
 			_parseilink_simple
 			_parsetable_simple	);
-    my @stack= customparser($edit, \%o1, \%o2, @parsers);
+    my @stream= customparser($edit, \%o1, \%o2, @parsers);
     
     # run a custom parser on text... output in stack
     # convert nested heading bodytext to headingtext
     # flatten
     # return bit by bit
-    for (0..@stack-1) {
+    for (0..@stream-1) {
 # 	say $_;
-	my $tok= $stack[$_];
+	my $tok= $stream[$_];
 	#say $tok->[0],$tok->[1];
 	if ($tok->[0] =~ /\d/) {
 	    map {  $_->[0] =~ s/BODYTEXT/HEADINGTEXT/ } @{ $tok->[1] };
@@ -111,10 +111,10 @@ my %o2 = (
 	$tok->[0] =~ s/BODYTEXT/IGNORE/ ; # no body text either outside of headings
     }
     
-     if (!$unflatten) { @stack=flatten(@stack) }
-    @stack= reduce( @stack);
-#     warn Dumper @stack;
-    return @stack;
+     if (!$unflatten) { @stream=flatten(@stream) }
+    @stream= mergetokens( @stream);
+#     warn Dumper @stream;
+    return @stream;
 }
 
 sub parsebadlinks {
@@ -196,15 +196,15 @@ my %o2 = (
 			_parseheading
 			_parseilink_simple
 			_parsetable_simple	);
-    my @stack= customparser($edit, \%o1, \%o2, @parsers);
+    my @stream= customparser($edit, \%o1, \%o2, @parsers);
     
     # run a custom parser on text... output in stack
     # convert nested heading bodytext to headingtext
     # flatten
     # return bit by bit
-#     for (0..@stack-1) {
+#     for (0..@stream-1) {
 # # 	say $_;
-# 	my $tok= $stack[$_];
+# 	my $tok= $stream[$_];
 # 	#say $tok->[0],$tok->[1];
 # 	if ($tok->[0] =~ /\d/) {
 # 	    map {  $_->[0] =~ s/BODYTEXT/HEADINGTEXT/ } @{ $tok->[1] };
@@ -213,10 +213,10 @@ my %o2 = (
 # 	$tok->[0] =~ s/BODYTEXT/IGNORE/ ; # no body text either outside of headings
 #     }
     
-    if (!$unflatten) { @stack=flatten(@stack) }
-    @stack= reduce( @stack);
-#     warn Dumper @stack;
-    return @stack;
+    if (!$unflatten) { @stream=flatten(@stream) }
+    @stream= mergetokens( @stream);
+#     warn Dumper @stream;
+    return @stream;
 }
 
 

@@ -2,7 +2,7 @@
 
 use warnings;
 use strict;
-use 5.10.0;
+use 5.10.1;
 use Data::Dumper::Simple;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
@@ -10,17 +10,19 @@ binmode STDOUT, ":encoding(UTF-8)";
 use lib "/home/kevin/Dropbox/development/modules";
 
 #use Titlecase qw(titlecase isanacronym ucfirstimproved possibleacronym);
-use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten reduce);
+use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten mergetokens);
 
 say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
-use Test::More tests => 39 ; #tests => 3;
+use Test::More tests => 40 ; #tests => 3;
 
 $MediaWikiParser::debug=0; # make loud
+my @stream;
 
 my ($test,$expected);
 $test=	qq<==DTS==\n\n\nDTS is very cool. I like it. {{RatingBar}}>;
 $expected=	$test; #rendertokens(tokenise($test));
+
 is( rendertext(tokenise($test)) , $expected, "#01 Parsing and re-rendering Integrity Test - first test");
 
 print "\n";
@@ -271,61 +273,62 @@ my %o2 = (
 
 $test=		qq<==hello {{ignore this}} world, how are you?==>;
 $expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|IGNORE>;
-my @stack = 	customparser($test, \%o1, \%o2);
-	is	(rendertokens(@stack), $expected, "#32 Testing customparser for headings...");
+@stream = 	customparser($test, \%o1, \%o2);
+	is	(rendertokens(@stream), $expected, "#32 Testing customparser for headings...");
 
 $test=		qq<This is some '''bold''' text\n== hello horld ==\n== hello '''bold''' world==>;
 $expected=	qq<BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
-@stack = 	customparser($test, \%o1, \%o2);
-	is	(rendertokens(@stack), $expected, "#33 Testing customparser for headings 2...");
+@stream = 	customparser($test, \%o1, \%o2);
+	is	(rendertokens(@stream), $expected, "#33 Testing customparser for headings 2...");
 
 $test=		qq<=l1=\n==l2==\n===l3===\n====l4====\n=====l5=====\n======l6======>;
 $expected=	qq<H1|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H3|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H4|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H5|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H6|IGNORE|BODYTEXT|IGNORE>;
-@stack = 	customparser($test, \%o1, \%o2);
-	is	(rendertokens(@stack), $expected, "#34 Testing customparser for all headings...");
-# 	say MediaWikiParser::rendertokensbartext(@stack);
+@stream = 	customparser($test, \%o1, \%o2);
+	is	(rendertokens(@stream), $expected, "#34 Testing customparser for all headings...");
+# 	say MediaWikiParser::rendertokensbartext(@stream);
 
-$test=		qq{Arana-Quirez, P., Isan-Chan, D., Clarke, S., et al, “Lausanne Occasional Paper 24: <nowiki>Cooperating in World Evangelization: A Handbook on Church/Para-Church Relationships.” <</nowiki>[http://www.lausanne.org/documents.html http://www.lausanne.org/documents.html]> (27<sup>th</sup> September, 2007).};
-@stack = 	customparser($test, \%o1, \%o2);
-	say MediaWikiParser::rendertokensbartext(@stack);
-
+# $test=		qq{Arana-Quirez, P., Isan-Chan, D., Clarke, S., et al, “Lausanne Occasional Paper 24: <nowiki>Cooperating in World Evangelization: A Handbook on Church/Para-Church Relationships.” <</nowiki>[http://www.lausanne.org/documents.html http://www.lausanne.org/documents.html]> (27<sup>th</sup> September, 2007).};
+# @stream = 	customparser($test, \%o1, \%o2);
+# 	say MediaWikiParser::rendertokensbartext(@stream);
+# not a test above?
 
 
 say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
-@stack = customparser($test, \%o1, \%o2); 
-my @stack2 =@stack;
+@stream = customparser($test, \%o1, \%o2); 
+my @stream2 =@stream;
 
-my $iter = MediaWikiParser::walkstream(@stack);
+my $iter = MediaWikiParser::walkstream(\@stream);
 my $items;
 while (my $tok = $iter->()) {
     $items++; #say "walkstream: ",$tok->[0];
 }
 say "Items: $items";
-is(@stack,@stack2,"compare walkstream stacks to see if stack is untouched");
+is(@stream,@stream2,"compare walkstream stacks to see if stack is untouched");
 
-# say MediaWikiParser::rendertokensbartext( parseheadingtext( @stack ) );
+# say MediaWikiParser::rendertokensbartext( parseheadingtext( @stream ) );
 
 $test=		qq<== hello __NOTOC__ world ==\n== hello '''bold''' world==>;
 $expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
-@stack = 	customparser($test, \%o1, \%o2);
-	is	(rendertokens(@stack), $expected, "#34 Testing customparser for headings 3...");
-# say rendertokens  MediaWikiParser::flatten( @stack ) ;
-# say MediaWikiParser::rendertokensbartext( @stack );
-	is	(rendertext(flatten(@stack)), $test, "#35 Testing customparser and flattern sub");
-	is	(rendertext(parseheadingtext(@stack)), $test, "#36 Rendering integrity checking parseheadingtext sub");
+@stream = 	customparser($test, \%o1, \%o2);
+	is	(rendertokens(@stream), $expected, "#34 Testing customparser for headings 3...");
+# say rendertokens  MediaWikiParser::flatten( @stream ) ;
+# say MediaWikiParser::rendertokensbartext( @stream );
+
+	is	(rendertext(flatten(@stream)), $test, "#35 Testing customparser and flattern sub");
+	is	(rendertext(parseheadingtext(@stream)), $test, "#36 Rendering integrity checking parseheadingtext sub");
 
 sub parseheadingtext {
-    my (@stack) = @_ ;
-#     warn Dumper @stack;
+    my (@stream) = @_ ;
+#     warn Dumper @stream;
     # run a custom parser on text... output in stack
     # convert nested heading bodytext to headingtext
     # flatten
     # return bit by bit
-    for (0..@stack-1) {
+    for (0..@stream-1) {
 # 	say $_;
-	my $tok= $stack[$_];
+	my $tok= $stream[$_];
 # 	say $tok->[0],$tok->[1];
 	if ($tok->[0] =~ /H\d/) {
 	    map {  $_->[0] =~ s/BODYTEXT/HEADINGTEXT/ } @{ $tok->[1] };
@@ -333,18 +336,18 @@ sub parseheadingtext {
 	}
 	$tok->[0] =~ s/BODYTEXT/IGNORE/ ; # no body text either outside of headings
     }
-#     warn Dumper @stack;
-    @stack = reduce flatten @stack;
+#     warn Dumper @stream;
+    @stream = mergetokens flatten @stream;
     
-#     warn Dumper @stack;
-    return @stack;
+#     warn Dumper @stream;
+    return @stream;
 }
 
 sub make_parseheadingtext_iterator {
-    my (@stack) = parseheadingtext( @_ ) ; # process and flatten stack
+    my (@stream) = parseheadingtext( @_ ) ; # process and flatten stack
     return sub {
-	return undef if !@stack; # if nothing more return undef
-	return shift @stack; # otherwise return a token and reduce stack
+	return undef if !@stream; # if nothing more return undef
+	return shift @stream; # otherwise return a token and mergetokens stack
 	}
 }
 
@@ -352,7 +355,7 @@ sub make_parseheadingtext_iterator {
 
 # use Titlecase qw(titlecase);
 # 
-# my $iterator=make_parseheadingtext_iterator ( @stack2 );
+# my $iterator=make_parseheadingtext_iterator ( @stream2 );
 # my $correct;
 # while ( my $tok = $iterator->() ) {
 #     if ($tok->[0] eq 'HEADINGTEXT') { $correct = titlecase( $tok->[1] );

@@ -2,7 +2,7 @@
 
 use warnings;
 use strict;
-use 5.10.0;
+use 5.10.1;
 use Data::Dumper::Simple;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
@@ -22,12 +22,12 @@ $MediaWikiParser::debug=0; # make loud
 # open FILE, "<howtowriteinwiki.dat";
 # $test = do { local $/; <FILE> };
 # 
-# my @stack=parseheadingtext ( $test );
-# my @stack2=@stack;
+# my @stream=parseheadingtext ( $test );
+# my @stream2=@stream;
 # my $correct;
 # my $h="";
 # my @headings= (0,0,0,0,0,0,0);
-# while ( my $tok = shift @stack ) {
+# while ( my $tok = shift @stream ) {
 #     if ($tok->[0] =~ m/\d/) { $h=$tok->[0]; $headings[$h]++ };
 #     if ($tok->[0] eq 'HEADINGTEXT') { $correct = titlecase( $tok->[1] );
 #     say "|".$tok->[1]."| is a $h";
@@ -60,14 +60,14 @@ while (my ($page,$edit) = getnextpage("ignore seen")) {
     #$page="YWAM England Leadership Appraisal Pack"; $edit = getpage($page);
     say "$throttle: [[$page]]";
     $throttle++;
-    my @stack=	parseheadingtext ( $edit );
-    #my @stack2=@stack;
+    my @stream=	parseheadingtext ( $edit );
+    #my @stream2=@stream;
     my $replace="";
     my $h=	"";
     my $num=	0;
     my @headings= (0,0,0,0,0,0,0);
     # process page contents
-    while ( my $tok = shift @stack ) {
+    while ( my $tok = shift @stream ) {
 	my $text=$tok->[1];
 	if ($tok->[0] =~ m/\d/) { $h=$tok->[0]; $headings[$h]++ };
 	if ($tok->[0] eq 'HEADINGTEXT') { $text = titlecase( $text );

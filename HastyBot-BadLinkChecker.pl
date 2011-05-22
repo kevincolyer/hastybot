@@ -2,7 +2,7 @@
 
 use warnings;
 use strict;
-use 5.10.0;
+use 5.10.1;
 use Data::Dumper::Simple;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
@@ -46,12 +46,12 @@ while (my $edit = getpage($pages[$index])) {
     my $page=$pages[$index];
     say "\n$index: [[$page]]";
     $index++;
-    my @stack=		parsebadlinks ( $edit );
+    my @stream=		parsebadlinks ( $edit );
     my $replace=	"";
     my $num	=	0;
     my $numalive=	0;
     # process page contents
-    while ( my $tok = shift @stack ) {
+    while ( my $tok = shift @stream ) {
 	my $text=$tok->[1];
 	my $url="";
 	say "Token ".$tok->[0]." is |".snippet($text)."|";

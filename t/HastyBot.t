@@ -3,7 +3,7 @@
 
 use warnings;
 use strict;
-use 5.10.0;
+use 5.10.1;
 use Test::More qw( no_plan ); #tests => 3;
 
 use HastyBot qw(commify);

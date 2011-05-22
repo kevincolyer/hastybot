@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-use 5.10.0;
+use 5.10.1;
 use strict;
 # licence - perl artistic licence...
 use utf8;
@@ -18,7 +18,7 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 1.00;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug timed customparser flatten reduce make_iterator);
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug timed customparser flatten mergetokens make_iterator);
 
 
 our $debug=0;
@@ -27,7 +27,7 @@ our $debugtokens=0;
 
 sub tokenise {
     my ($text) = @_;
-    my @stack ;
+    my @stream ;
     my $state_nowiki=0;
     my $state_htmlcom=0;
     my @state_html; # state variable is a stack... perhaps we need a stack here too?
@@ -169,23 +169,23 @@ sub tokenise {
 	    $tok->[0]='PRE_SINGLE' if $this eq 'WS'; # NOTE WS can contain multplie spaces - pre is one following NL
 	}
 
-	# some optimisation to reduce tokens
+	# some optimisation to mergetokens tokens
 	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' )) { # or $this eq 'WS'
-	    $stack[-1][1].=$tok->[1];
+	    $stream[-1][1].=$tok->[1];
 	    next;
 	}
-        push @stack, $tok;
+        push @stream, $tok;
 	$last = $this;
     }
     _time("finishing tokeniser",-1) if $timed;
-    #warn Dumper @stack;
-    if ($stack[0][0] eq "HEADING_C") {$stack[0][0]="HEADING_O"} # because lexer only emit's HEADING_O...
-    return @stack;
+    #warn Dumper @stream;
+    if ($stream[0][0] eq "HEADING_C") {$stream[0][0]="HEADING_O"} # because lexer only emit's HEADING_O...
+    return @stream;
 }
 
 ###############################################################
 sub rendertext {
-    $_= _render("" ,1,@_);
+    local $_= _render("" ,1,@_);
     say if $debug;
     return $_;
 }
@@ -204,10 +204,10 @@ sub rendertokens {
 
 sub rendertokensbartext {
     use Kpctools q<snippet>;
-    my (@stack, $text, $first, $len);
-    @stack=@_;
+    my (@stream, $text, $first, $len);
+    @stream=@_;
     $text="";
-    while (my $tok = shift @stack) {
+    while (my $tok = shift @stream) {
 	$text.="\n" if $first++;
 	if (ref( $tok->[1] ) eq 'ARRAY') {
 	    $text.="\n".$tok->[0].":\n"; 			# because we want to see the token
@@ -225,15 +225,20 @@ sub _render {
     _time("starting _render") if $timed;
 
     my ($text, $first);
-    my ($join,$which,@stack) = @_;
+    my $join= shift @_;
+    my $which= shift @_;
+    push my @stream ,   @_  ;
     $text="";
-#     warn Dumper @stack;
-    while (my $tok = shift @stack) {
+#say "in _render - initial stack is...";
+#warn Dumper @stream;
+    my $it = walkstream( \@stream ) ;
+
+    while (my $tok = NEXTVAL($it)) {
+#	warn Dumper $tok;
+	#next if @{$tok}==0;
 	$text.=$join if $first++;
-# 	warn Dumper $tok;
 	if (ref( $tok->[1] ) eq 'ARRAY') {
-	    $text.=$tok->[0].$join if $which==0; 		# if rendering tokens then we want to see the token of array ref
-	    $text.=_render( $join, $which, @{ $tok->[1] } ); 	# recurse using a dereferenced stack 
+	    $text.=$tok->[0] if $which==0; 	# if rendering tokens(=0) then we want to see the token of array ref
 	} else {
 	    $text.= $tok->[$which];
 	}
@@ -250,10 +255,10 @@ sub parse {
 }
     
 sub make_iterator {
-    my (@stack) = @_  ; 
+    my (@stream) = @_  ; 
     return sub {
-	return undef if !@stack; 	# if nothing more return undef
-	return shift @stack ; 		# otherwise return a token and reduce stack
+	return undef if !@stream; 	# if nothing more return undef
+	return shift @stream ; 		# otherwise return a token and mergetokens stack
 	}
 }
 
@@ -264,32 +269,34 @@ sub customparser {
     my ($wikitext,$o1,$o2, @parsers)=@_;
 
     # tokenising
-    my @stack=	tokenise($wikitext);
+    my @stream=	tokenise($wikitext);
 
     # continue parsing using chain of sub parsers, including custom parsers if reqd.
     _time("starting chained subparsers") if $timed;
     if (!@parsers) { @parsers = qw(_parseheading _parsetemplate_simple _parseelink _parseilink_simple _parsetable_simple) };
     no strict; 					# needed for below
-    map { @stack =  &$_(@stack) } @parsers; 	# &$_() creates a sub from the string value in $_
+    map { @stream =  &$_(@stream) } @parsers; 	# &$_() creates a sub from the string value in $_
     use strict;
     _time("finishing chained subparsers",-1) if $timed;
     
     # optimise 					#1 - group tokens, two passes
-    @stack=     _simplify($o1, @stack);
-    @stack=     _simplify($o2, @stack);
+#     _simplify($o1, \@stream);
+#     _simplify($o2, \@stream); # new version is 40ms slower than old!
+    @stream = _simplify_old($o1, @stream);
+    @stream = _simplify_old($o2, @stream);
 
 
     # optimise 					#2 - combine adjacant identical tokens
-    @stack=	reduce(@stack);
-    
+    @stream=	mergetokens(@stream);
+#     warn Dumper @stream;    
     # sanity check - if parser fails we want to make sure we don't mess up on live wiki's
-    if (rendertext(@stack) ne $wikitext) { 
-	warn Dumper @stack;
+    if (rendertext(@stream) ne $wikitext) { 
+#	warn Dumper @stream;
 	die "Rendering comparison of parsed wikitext failed - critical error. Stopping."; 
     }
 
     _time("finished custom parser",-1) if $timed;
-    return @stack;
+    return @stream;
 }
 
 sub _testparser {
@@ -386,7 +393,7 @@ sub _testparser {
 }
 
 sub _parseheading { 
-    my @returnstack;
+    my @returnstream;
     my $state_heading=0;
     my $headinglevel=0;
     my $last ='n/a';
@@ -397,12 +404,12 @@ sub _parseheading {
 		@{ $tok->[1] } = _parseheading( @{ $tok->[1] } ) ; # dereference and recurse
 	}
 
-	if ($tok->[0] eq 'NL' and $headinglevel) {$headinglevel=0; $returnstack[$state_heading]->[0]='IGNORE'; $state_heading=0}; # reset heading on newline
+	if ($tok->[0] eq 'NL' and $headinglevel) {$headinglevel=0; $returnstream[$state_heading]->[0]='IGNORE'; $state_heading=0}; # reset heading on newline
 
 	if ($tok->[0] eq 'HEADING_O') { # heading OPEN
 	    if ($headinglevel) {die ("this can not happen - heading_o is always first!");}
 	    $headinglevel = length ($tok->[1]);
-	    $state_heading 	  = @returnstack; # stack pos +1 = size will be the index of this item as not inserted into stack yet!
+	    $state_heading 	  = @returnstream; # stack pos +1 = size will be the index of this item as not inserted into stack yet!
 	    $tok->[0]     = "H$headinglevel";
 	};
 
@@ -412,15 +419,15 @@ sub _parseheading {
 		my $closeheading=length($tok->[1]); 
 		if ($headinglevel>$closeheading) { # closeheading wins - add an ignore with = x diff after openheading
 		    my $tok2 = ['IGNORE','=' x ($headinglevel-$closeheading)];
-		    splice(@returnstack,$state_heading+1,0,$tok2); #hopefully add tok2 to just after the first heading
-		    $returnstack[$state_heading]->[0]= "H$closeheading";
-		    $returnstack[$state_heading]->[1]= "=" x $closeheading;
+		    splice(@returnstream,$state_heading+1,0,$tok2); #hopefully add tok2 to just after the first heading
+		    $returnstream[$state_heading]->[0]= "H$closeheading";
+		    $returnstream[$state_heading]->[1]= "=" x $closeheading;
 		    $tok->[0]="H$closeheading";
 		}; 
 		if ($headinglevel<$closeheading) { # heading wins - add and ignore with = x diff after close heading - reset closeheading
 		    $last='IGNORE'; # we move ahead a token so trick optimiser...
 		    my $tok2 = [$last,'=' x ($closeheading-$headinglevel)];
-		    push @returnstack,$tok2; # push my difference token into stack before current token 
+		    push @returnstream,$tok2; # push my difference token into stack before current token 
 		    $tok->[0]= "H$headinglevel";
 		    $tok->[1]= "=" x $headinglevel;
 		    $closeheading=$headinglevel;
@@ -430,16 +437,16 @@ sub _parseheading {
 		    $tok->[0] = "H$closeheading";
 		};
 		# cut out the heading, replace with arrayref and tok h3 etc.
-		my @snip= splice (@returnstack, $state_heading);
+		my @snip= splice (@returnstream, $state_heading);
 		#warn Dumper @snip;
 		# ignore opening tag and closing semantic meaning no longer neaded
 		$snip[0]->[0] = 'IGNORE';
 		$tok->[0] = 'IGNORE';
 		push @snip, $tok; # put closing tag on too i.e. currently processing one
 		#warn Dumper @snip;
-		$returnstack[$state_heading]->[1]= \@snip;			# add array ref to stack
-		$returnstack[$state_heading]->[0] = "H$closeheading";	# give it a meaningful name
-		#warn Dumper @stack;
+		$returnstream[$state_heading]->[1]= \@snip;			# add array ref to stack
+		$returnstream[$state_heading]->[0] = "H$closeheading";	# give it a meaningful name
+		#warn Dumper @stream;
 		# done
 		$headinglevel=0;
 		$last='IGNORE';
@@ -448,16 +455,16 @@ sub _parseheading {
 		next; # we've added to stack so now restart the loop.
 	    }
 	}
-	push @returnstack, $tok;
+	push @returnstream, $tok;
     }
-    #warn Dumper @returnstack;
-    return @returnstack;
+    #warn Dumper @returnstream;
+    return @returnstream;
 }
 
 
 
 sub _parseelink { 
-    my @returnstack;
+    my @returnstream;
     my $state_elink=0;
     my $elinkstart=0;
     my $elinkurl = 0;
@@ -473,11 +480,11 @@ sub _parseelink {
 	    $tok->[0] = 'BARE'.$tok->[0] if ($tok->[0] eq 'URL' or $tok->[0] eq 'MAILTO'); 
 	    $tok->[0] = 'IGNORE' 	 if  $tok->[0] eq 'ELINK_C';  # mistake - not in link and so ignore tag
 	    if ($tok->[0] eq 'ELINK_O') {
-		$elinkstart=@returnstack;
+		$elinkstart=@returnstream;
 		$state_elink=1;
 	    }
 	    #say "not in elink: ",$tok->[0],$tok->[1];
-	    push @returnstack, $tok; # nothing to see move along please!
+	    push @returnstream, $tok; # nothing to see move along please!
 	    next;
 	}
 
@@ -491,14 +498,14 @@ sub _parseelink {
 
 	    if ($tok->[0] eq 'WS') {
 		if ($elinkws==0) {
-		    $elinkws=@returnstack; 	# only record first ws seen...
+		    $elinkws=@returnstream; 	# only record first ws seen...
 		}			 	# mark WS as IGNORE later
 	    }
 
 	    if ($tok->[0] eq 'NL') {
 		#reset
-# 		for ($elinkstart..@returnstack) {
-# 		    $returnstack[$_]->[0]='IGNORE';
+# 		for ($elinkstart..@returnstream) {
+# 		    $returnstream[$_]->[0]='IGNORE';
 # 		}
 		$elinkstart=0;
 		$state_elink=0;
@@ -508,13 +515,13 @@ sub _parseelink {
 	    
 	    if ($tok->[0] eq 'ELINK_C') {
 		if ($elinkws) {
-		    for ($elinkws+1..@returnstack-1) {
-			$returnstack[$_]->[0] = 'ELINKCOMMENT';
+		    for ($elinkws+1..@returnstream-1) {
+			$returnstream[$_]->[0] = 'ELINKCOMMENT';
 		    }
 		}
-		$returnstack[$elinkstart]->[0] = 'IGNORE';
-		$returnstack[$elinkws]->[0] = 'IGNORE';
-		$returnstack[$elinkstart+1]->[0] = 'ELINK'.$returnstack[$elinkstart+1]->[0];
+		$returnstream[$elinkstart]->[0] = 'IGNORE';
+		$returnstream[$elinkws]->[0] = 'IGNORE';
+		$returnstream[$elinkstart+1]->[0] = 'ELINK'.$returnstream[$elinkstart+1]->[0];
 		$elinkstart=0;
 		$elinkws=0;
 		$elinkurl=0;
@@ -523,16 +530,16 @@ sub _parseelink {
 	    }
 	}
 	#say " in elink: ",$tok->[0],$tok->[1];
-	push @returnstack, $tok;
+	push @returnstream, $tok;
     }
     if ($state_elink) {
-	for ($elinkstart..@returnstack) {
-	    $returnstack[$_]->[0]='IGNORE';
+	for ($elinkstart..@returnstream) {
+	    $returnstream[$_]->[0]='IGNORE';
 	}
     }
-    #rendertokens(@returnstack);
-    #warn Dumper @returnstack;
-    return @returnstack;
+    #rendertokens(@returnstream);
+    #warn Dumper @returnstream;
+    return @returnstream;
 }
  
 sub _parseilink_simple {
@@ -540,7 +547,7 @@ sub _parseilink_simple {
     my $inilink=0;
     my $firstbar=0;
     my $lastbar=0;
-    my @returnstack;
+    my @returnstream;
     while (my $tok=shift @_) {
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
 		@{ $tok->[1] } = _parseilink_simple( @{ $tok->[1] } ) ; # dereference and recurse
@@ -549,21 +556,21 @@ sub _parseilink_simple {
 	if ($inilink==0) { 					# if we are not in a link...
 	    if ($tok->[0] eq 'ILINK_C') {$tok->[0]='IGNORE'};   # if close before open ignore
 	    if ($tok->[0] eq 'ILINK_O') {			# mark opening of elink
-		$open=@returnstack;
+		$open=@returnstream;
 		#say "open @ $open";
 		$inilink=1;
 		$firstbar=0;
 	        $lastbar=0;
 	    }; # ILINK_O ================= END
-	    push @returnstack, $tok; 				# anything else drops through...
+	    push @returnstream, $tok; 				# anything else drops through...
 	    next;
 	} 
 
 	# we are in a link...
 	if ($tok->[0] eq 'NL') { # NL ==== END			# if eol then Ilink should be ignored... 
-	    $returnstack[$open]->[0]='IGNORE'; 
+	    $returnstream[$open]->[0]='IGNORE'; 
 	    $inilink=0;						# mark as not in link
-	    push @returnstack, $tok;
+	    push @returnstream, $tok;
 	    next;
 	    # NL ========================= END
 	};
@@ -575,45 +582,45 @@ sub _parseilink_simple {
 		#say "starting rewitre of ilink_page";
 		for ($open+1 .. $firstbar-1) {
 		    #say $_;
-		    $returnstack[$_]->[0]='ILINK_PAGE';
+		    $returnstream[$_]->[0]='ILINK_PAGE';
 		}
 		if ($lastbar) {
 		    #say "starting rewitre of ilink_comment";
-		    for ($lastbar+1..@returnstack-1) {
+		    for ($lastbar+1..@returnstream-1) {
 			#say $_;
-			$returnstack[$_]->[0]='ILINK_COMMENT';
+			$returnstream[$_]->[0]='ILINK_COMMENT';
 		    }
 		}
 	    } else { 
 		#say "no bars encountered...";
-		for ($open+1..@returnstack-1) {
+		for ($open+1..@returnstream-1) {
 		    #say $_;
-		    $returnstack[$_]->[0]='ILINK_PAGE';
+		    $returnstream[$_]->[0]='ILINK_PAGE';
 		    }
 	    };
 	    #say "ending rewrite and closing the ilink";
 	    $open=0; 
 	    $inilink=0;
-	    push @returnstack, $tok;
+	    push @returnstream, $tok;
 	    next;
 	} ; # ILINK_C =====END		
 	    # BAR ============
 	if ($tok->[0] eq 'BAR') {
-	    $firstbar=@returnstack if !$firstbar;	# before is ILINK_PAGE # TODO is this assumption true?
-	    $lastbar =@returnstack if  $firstbar;	# last is ILINK_COMMENT
+	    $firstbar=@returnstream if !$firstbar;	# before is ILINK_PAGE # TODO is this assumption true?
+	    $lastbar =@returnstream if  $firstbar;	# last is ILINK_COMMENT
 	    $tok->[0]='IGNORE';				# ignore BAR now please
 	    #say "first bar $firstbar, last bar $lastbar";
-	    push @returnstack, $tok;
+	    push @returnstream, $tok;
 	    next;
 	}; # BAR ==========END
 	$tok->[0] = 'IGNORE';				#ignore all to end bracket... but rewrite on exit from link
-	push @returnstack, $tok;
+	push @returnstream, $tok;
     }
-    return @returnstack;
+    return @returnstream;
 }
  
 sub _parsetable_simple {
-    my @returnstack;
+    my @returnstream;
     my $intable=0;
     while (my $tok=shift @_) {
 		if ( ref( $tok->[1] ) eq 'ARRAY')  {
@@ -627,17 +634,17 @@ sub _parsetable_simple {
 	    $intable++;
 	}
 	$tok->[0]='IGNORE' if $intable or $tok->[0] eq 'TABLE_C' ; #ignore everything in table
-	push @returnstack, $tok;
+	push @returnstream, $tok;
     }
-    return @returnstack;
+    return @returnstream;
 }
 
 sub _parsetemplate_simple {
     my $templatedepth=0;
-    my (@stack)=@_;
-    my @returnstack;
-    while (@stack) {
-	my $tok = shift @stack;
+    my (@stream)=@_;
+    my @returnstream;
+    while (@stream) {
+	my $tok = shift @stream;
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
 	    @{ $tok->[1] } = _parsetemplate_simple( @{ $tok->[1] } ) ; # dereference and recurse
 	}
@@ -646,7 +653,7 @@ sub _parsetemplate_simple {
 	if ($this eq 'TEMPL_O') {
 	    $templatedepth++;
 	    $tok->[0]='IGNORE';
-	    push @returnstack, $tok;
+	    push @returnstream, $tok;
 	    next
 	};
 	if ($this eq 'TEMPL_C') {
@@ -654,17 +661,17 @@ sub _parsetemplate_simple {
 		$tok->[0]='IGNORE'}
 	    else { $templatedepth--; $tok->[0]='IGNORE'; }      # close if open ascend a level
 	} elsif ($templatedepth!=0) {$tok->[0]='TEMPLATE';};
-	push @returnstack, $tok;
+	push @returnstream, $tok;
     };
-    return @returnstack;
+    return @returnstream;
 }
 
 sub _parsetemplate_ignore {
     my $templatedepth=0;
-    my (@stack)=@_;
-    my @returnstack;
-    while (@stack) {
-	my $tok = shift @stack;
+    my (@stream)=@_;
+    my @returnstream;
+    while (@stream) {
+	my $tok = shift @stream;
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
 	    @{ $tok->[1] } = _parsetemplate_simple( @{ $tok->[1] } ) ; # dereference and recurse
 	}
@@ -673,7 +680,7 @@ sub _parsetemplate_ignore {
 	if ($this eq 'TEMPL_O') {
 	    $templatedepth++;
 	    $tok->[0]='IGNORE';
-	    push @returnstack, $tok;
+	    push @returnstream, $tok;
 	    next
 	};
 	if ($this eq 'TEMPL_C') {
@@ -681,142 +688,144 @@ sub _parsetemplate_ignore {
 		$tok->[0]='IGNORE'}
 	    else { $templatedepth--; $tok->[0]='IGNORE'; }      # close if open ascend a level
 	} elsif ($templatedepth!=0) {$tok->[0]='IGNORE';};
-	push @returnstack, $tok;
+	push @returnstream, $tok;
     };
-    return @returnstack;
+    return @returnstream;
 }
-sub reduce  { # merges two identical tokens into one token
-    _time("starting reduce") if $timed;
+sub mergetokens  { # merges two identical tokens into one token
+    _time("starting mergetokens") if $timed;
 #     if (@_ == 1) { 
-# 	_time("finishing reduce - short stack",-1) if $timed;
+# 	_time("finishing mergetokens - short stack",-1) if $timed;
 # 	return @_
 #     }
-    my (@stack)=@_;
+    my (@stream)=@_;
     my $last="n/a";
-    my @returnstack;
-#     warn Dumper @stack;
-#     my $leng =@stack;
+    my @returnstream;
+#     warn Dumper @stream;
+#     my $leng =@stream;
 #     say $leng;
     
-    while (my $tok=shift @stack) {
+    while (my $tok=shift @stream) {
 	if (!defined $tok->[1])	{
-	    warn Dumper @returnstack, $tok; 
-	    say "reduce Undefined payload tok [1] problem!"; 
+# 	    warn Dumper @returnstream, $tok; 
+	    say "mergetokens Undefined payload tok [1] problem!"; 
 	    $tok->[1]="";
 	};
 	    
 # 	    say "$last:".$tok->[1], ref($tok->[1]);
 # 	    say "this:$this: last:$last:";
 	if (ref($tok->[1]) eq 'ARRAY') {	# if ref then descend
-	    @{ $tok->[1] } =reduce( @{ $tok->[1] } ); # dereference and recurse
+	    @{ $tok->[1] } =mergetokens( @{ $tok->[1] } ); # dereference and recurse
 # 		say "recurse 2";
 	    $last="ARRAYREF"; # don't merge array refs.
-	    push @returnstack, $tok;
+	    push @returnstream, $tok;
 	    next;
 	};
 	my $this=$tok->[0];
 	if ($this eq $last and $last ne "ARRAYREF") {
-	    #if (!defined $returnstack[-1]->[1]) {warn Dumper @returnstack };
-	    $returnstack[-1][1].= $tok->[1];  
-#  		say $returnstack[-1][0]." merging..."; 
+	    #if (!defined $returnstream[-1]->[1]) {warn Dumper @returnstream };
+	    $returnstream[-1][1].= $tok->[1];  
+#  		say $returnstream[-1][0]." merging..."; 
 	    next;
 	};
-	push @returnstack, $tok;
+	push @returnstream, $tok;
 # 	warn Dumper $tok;
 	$last=$this;
     };
-    _time("finishing reduce",-1) if $timed;
-    return @returnstack;
+    _time("finishing mergetokens",-1) if $timed;
+    return @returnstream;
 } # old was 470535 to 436,569 = 35k..........now 460821 to 449214 = 11K
 
-sub reduce_old  {
-    #_time("starting reduce") if $timed;
-    my (@stack)=@_;
-    my @returnstack;
-#     warn Dumper @stack;
-#     my $leng =@stack;
-#     say $leng;
-    if (@stack >1) {
-	my $tok= shift @stack;
-	my $last=$tok->[0];
-# 	say "$last:".$tok->[1];  
-	if (ref($tok->[1]) eq 'ARRAY') {
-	    @{ $tok->[1] } =reduce( @{ $tok->[1] } ); #dereference and 
-# 	    say "recurse...";
-	    $last="ARRAYREF";
-	};
-	my $this;
-# 	say "Starting Reduction";
-# 	warn Dumper $tok;
-	push @returnstack, $tok;
-	while ($tok=shift @stack) {
-	    $this=$tok->[0];
-# 	    say "$last:".$tok->[1], ref($tok->[1]);
-# 	    say "this:$this: last:$last:";
-	    if (ref($tok->[1]) eq 'ARRAY') {	# if ref then descend
-		@{ $tok->[1] } =reduce( @{ $tok->[1] } ); # dereference and recurse
-# 		say "recurse 2";
-		$last="ARRAYREF";
-		push @returnstack, $tok;
-		next;
-	    };
-	    if ($this eq $last and $last ne "ARRAYREF") {
-		if (!defined $tok->[1])	{warn Dumper @returnstack, $tok; say "reduce Undefined payload tok [1] problem!"; $tok->[1]=""; };
-		#if (!defined $returnstack[-1]->[1]) {warn Dumper @returnstack };
-		$returnstack[-1]->[1].=$tok->[1];  # don't merge array refs.
-# 		say $returnstack[$#returnstack]->[0]." merging..."; 
-		next;
-	    };
-	push @returnstack, $tok;
-# 	warn Dumper $tok;
-	$last=$this;
-	};
-        _time("finishing reduce",-1) if $timed;
-	return @returnstack;
-    }
-#    say "Reduction not needed - stack length ", @stack;
-#     warn Dumper @stack;
-    if (ref($stack[0]->[1]) eq 'ARRAY') {	# if ref then descend
-		    @{ $stack[0]->[1] } =reduce( @{ $stack[0]->[1] } ); # dereference and recurse
-    }
-#     warn Dumper @stack;
-    _time("finishing reduce - short stack",-1) if $timed;
-    return @stack;
-}
 
 sub NEXTVAL 	{ $_[0]->() 	}
 sub Iterator (&){ return $_[0] 	}
 
-sub walkstream (\@) { #note as of now this eats the incoming stream...
-    push my @streams , walkarray(shift @_) ;
+sub walkstream ($) {
+    my $streamref =  shift @_ ;
+# warn Dumper $streamref;
+    die 'Not an array ref in @streams' if ref ($streamref) ne "ARRAY";
+    my $index = 0;
+    my $length=scalar @{$streamref};
+    #die 'in walk stream - $length is set to '.$length;
+    push my @streams , $streamref, $index, $length; # push in triples in to @streams
     return Iterator {
-	while (@streams) { 
-	    my $tok = NEXTVAL( $streams[0] ); # get next val from 1st iterator in queue
-	    if (!defined $tok) {shift @streams; next;} # end of iterator, get new one
-	    if (ref $tok->[1] eq 'ARRAY') {unshift @streams, walkarray( $tok->[1] )}; # it is a new level so unshift it and work on new level next time
+# warn Dumper @streams;
+	while (@streams) {
+	    $index = $streams[1]; 
+# # say scalar @streams, " index=$index length=$length";
+	    #if (!defined $length) {say  'in walkstream $length was not defined'; die } #Dumper @streams};
+	    if ($index >= $streams[2]) {shift @streams; shift @streams; shift @streams; next;} 	# remove exhausted iterator
+	    my $tok = $streams[0][$index]; 							# get next token
+	    $streams[1]++ ; 									# increment the index
+# warn Dumper $tok;
+	    #die '$tok does not have two entries in array' if scalar @{$tok} != 2;
+	    if (ref($tok->[1]) eq 'ARRAY') {unshift @streams, $tok->[1],0,scalar @{$tok->[1]} } # put the next array on bottom of stack
 	    return $tok;
 	}
-    return undef;
+    return undef ; # exhausted iterator returns nothing...
     }
 }
 
-sub walkarray (\@) {
-    my $array=shift;
-    my $index=0;
-    return Iterator {
-	return $array->[$index++] if $index< scalar @{$array};
-	return undef;
-    }
-}
+# sub walkstream (\@) { #note  as of now this eats the incoming stream...
+#     my @streamref = @_;
+#     push my @streams , walkarray ( @streamref ) ; # only 1 ref coming in
+#     die 'Not a code ref in @streams' if ref (@streams[0]) ne "CODE";
+#     return Iterator {
+#        say "in walkstream iterator: ", scalar @streams, " arrayrefs in @ streams...";
+# 	while (@streams) { 
+# 	    my $tok = $streams[0]->(); # get next val from 1st iterator in queue
+# 	    warn Dumper $tok;
+# 	    if (!defined $tok) {shift @streams; next;} # end of iterator, get new one
+# 	    if (ref ($tok->[1]) eq 'ARRAY') {unshift @streams, walkarray( $tok->[1] )}; # it is a new level so unshift it and work on new level next time
+# 	    say scalar @{$tok}, " tok length";
+# 	    return $tok;
+# 	}
+#     return undef;
+#     }
+# }
+# 
+# sub walkarray (\@) {
+#     no strict; 
+#     my $array1= \@_;
+#     my $array = $array1->[0];
+#     warn Dumper $array;
+#     die 'Not an array ref in @streams' if ref ($array) ne "ARRAY";
+#     my $index=0;
+#     return Iterator {
+# 	say $index, " ", scalar @{$array}, " ", $array->[$index];
+# 	return $array->[$index++] if $index< scalar @{$array};
+# 	return undef;
+#     }
+# }
 
 
 
 sub _simplify {
         _time("starting simplify") if $timed;
     my $groups=shift;
+    my $stream=shift;
     #warn Dumper  $groups;
     $groups->{UNKNOWN} ||= 'UNKNOWN'; # a little sanity check - prevents undefs in stack that are hard to trace due to spelling mistakes!
-    my @returnstack;
+    my $it = walkstream ( $stream );
+    
+    while (my $tok = $it->() ) {
+	#say "processing ".$tok->[0];
+	if ( !exists $groups->{$tok->[0]} ) {
+	    say $tok->[0]." token was not found in simplify hash... Changed to UNKNOWN" if $debug; 
+	    $tok->[0]='UNKNOWN';
+	} 
+	$tok->[0]=$groups->{$tok->[0]}; # use hash to simplify
+    }
+    _time("finishing simplify",-1) if $timed;
+    return  
+};
+
+sub _simplify_old {
+        _time("starting simplify") if $timed;
+    my $groups=shift;
+    #warn Dumper  $groups;
+    $groups->{UNKNOWN} ||= 'UNKNOWN'; # a little sanity check - prevents undefs in stack that are hard to trace due to spelling mistakes!
+    my @returnstream;
     while (my $tok=shift @_) {
 	#say "processing ".$tok->[0];
 	if ( !exists $groups->{$tok->[0]} ) {
@@ -827,36 +836,35 @@ sub _simplify {
 	#if contains a ref - recurse into it...
 	if ( ref( $tok->[1] ) eq 'ARRAY')  {
 	    #say "descending to simplify array ref...";
-	    @{ $tok->[1] } = _simplify( $groups , @{ $tok->[1] } ) ; # dereference and recurse
+	    @{ $tok->[1] } = _simplify_old( $groups , @{ $tok->[1] } ) ; # dereference and recurse
 	    #say "coming back up";
 	    #warn Dumper $tok;
 	}
 	#warn Dumper $tok;
 	#say "   processed to ".$tok->[0];
-	push @returnstack, $tok;   		# and return the renamed token
+	push @returnstream, $tok;   		# and return the renamed token
     }
-    #warn Dumper @returnstack;
+    #warn Dumper @returnstream;
     _time("finishing simplify",-1) if $timed;
 
-    return @returnstack;
+    return @returnstream;
 };
-
 sub flatten  {
        _time("starting flatten") if $timed;
 
-    my (@stack) = @_;
-    my @returnstack;
-    while (my $tok = shift @stack) {
-	if ( ref( $tok->[1] ) eq 'ARRAY' ) {
-	    push @returnstack, [ $tok->[0],"" ];		# push marker token and empty string
-	    push @returnstack,  flatten( @{$tok->[1]} ) ;# deref and recurse
-	    next;
-	}
-    push @returnstack, $tok;
+    my @returnstream;
+    my $it = walkstream( \@_ ) ;
+
+    while (my $tok = NEXTVAL($it)) {
+	if ( ref( $tok->[1] ) eq 'ARRAY' ) { push @returnstream, [$tok->[0], ""] ; next } # if you do $tok->[1]="" you clobber the array and break the iterator as it works by reference passing atm.
+	push @returnstream, $tok;
     }
+#     warn Dumper @returnstream;
     _time("finishing flatten",-1) if $timed;
-    return @returnstack;
-};
+    return @returnstream;
+}; # iterator makes flatten 10K slower?
+
+############### for timings ##############################################
 
 use Time::HiRes qw(tv_interval gettimeofday);
 use Kpctools qw(commify);

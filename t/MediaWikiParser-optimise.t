@@ -2,7 +2,7 @@
 
 use warnings;
 use strict;
-use 5.10.0;
+use 5.10.1;
 use Data::Dumper::Simple;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
@@ -10,7 +10,7 @@ binmode STDOUT, ":encoding(UTF-8)";
 use lib "/home/kevin/Dropbox/development/modules";
 
 #use Titlecase qw(titlecase isanacronym ucfirstimproved possibleacronym);
-use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten reduce);
+use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten mergetokens);
 
 say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
  
@@ -24,4 +24,5 @@ my ($test,$expected);
 say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
-my @stack = flatten (parse($test)); 
+ok (flatten (parse($test)),"parsing file - timed - 461K to beat 23/5/2011"); 
+
