@@ -117,8 +117,9 @@ sub tokenise {
 
     my ($this, $last);
     $last="n/a";
-    _time("starting tokeniser") if $timed; 
-    while (my $tok=$tokens->() ) {
+    _time("starting tokeniser") if $timed;
+    my $tok;
+    while ($tok= $tokens->() ) {
 	# comments 
 	# opening and closing comments
 	# $state_nowiki $state_htmlcom
@@ -232,8 +233,8 @@ sub _render {
 #say "in _render - initial stack is...";
 #warn Dumper @stream;
     my $it = walkstream( \@stream ) ;
-
-    while (my $tok = NEXTVAL($it)) {
+    my $tok;
+    while ($tok = NEXTVAL($it)) {
 #	warn Dumper $tok;
 	#next if @{$tok}==0;
 	$text.=$join if $first++;
@@ -256,7 +257,7 @@ sub parse {
     
 sub make_iterator {
     my (@stream) = @_  ; 
-    return sub {
+    return Iterator {
 	return undef if !@stream; 	# if nothing more return undef
 	return shift @stream ; 		# otherwise return a token and mergetokens stack
 	}
@@ -698,14 +699,16 @@ sub mergetokens  { # merges two identical tokens into one token
 # 	_time("finishing mergetokens - short stack",-1) if $timed;
 # 	return @_
 #     }
-    my (@stream)=@_;
+#     my (@stream)=@_;
     my $last="n/a";
+    my $this;
     my @returnstream;
+    my $tok;
 #     warn Dumper @stream;
 #     my $leng =@stream;
 #     say $leng;
     
-    while (my $tok=shift @stream) {
+    while ($tok=shift @_) {
 	if (!defined $tok->[1])	{
 # 	    warn Dumper @returnstream, $tok; 
 	    say "mergetokens Undefined payload tok [1] problem!"; 
@@ -721,7 +724,7 @@ sub mergetokens  { # merges two identical tokens into one token
 	    push @returnstream, $tok;
 	    next;
 	};
-	my $this=$tok->[0];
+	$this=$tok->[0];
 	if ($this eq $last and $last ne "ARRAYREF") {
 	    #if (!defined $returnstream[-1]->[1]) {warn Dumper @returnstream };
 	    $returnstream[-1][1].= $tok->[1];  
@@ -748,6 +751,7 @@ sub walkstream ($) {
     my $length=scalar @{$streamref};
     #die 'in walk stream - $length is set to '.$length;
     push my @streams , $streamref, $index, $length; # push in triples in to @streams
+    my $tok;
     return Iterator {
 # warn Dumper @streams;
 	while (@streams) {
@@ -755,7 +759,7 @@ sub walkstream ($) {
 # # say scalar @streams, " index=$index length=$length";
 	    #if (!defined $length) {say  'in walkstream $length was not defined'; die } #Dumper @streams};
 	    if ($index >= $streams[2]) {shift @streams; shift @streams; shift @streams; next;} 	# remove exhausted iterator
-	    my $tok = $streams[0][$index]; 							# get next token
+	    $tok = $streams[0][$index]; 							# get next token
 	    $streams[1]++ ; 									# increment the index
 # warn Dumper $tok;
 	    #die '$tok does not have two entries in array' if scalar @{$tok} != 2;
@@ -855,7 +859,7 @@ sub flatten  {
     my @returnstream;
     my $it = walkstream( \@_ ) ;
 
-    while (my $tok = NEXTVAL($it)) {
+    while (my $tok = $it->() ) {
 	if ( ref( $tok->[1] ) eq 'ARRAY' ) { push @returnstream, [$tok->[0], ""] ; next } # if you do $tok->[1]="" you clobber the array and break the iterator as it works by reference passing atm.
 	push @returnstream, $tok;
     }

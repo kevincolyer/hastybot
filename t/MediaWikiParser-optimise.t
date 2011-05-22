@@ -24,5 +24,7 @@ my ($test,$expected);
 say "\nParsing howtowriteinwiki.dat";
 open FILE, "<howtowriteinwiki.dat";
 $test = do { local $/; <FILE> };
-ok (flatten (parse($test)),"parsing file - timed - 461K to beat 23/5/2011"); 
+ok (flatten (parse($test)),"parsing file - timed - 456K to beat 23/5/2011"); 
 
+# notes - NEXTVAL is slow compared to ->
+# generally closure iterators are slow compared to recursion?
