@@ -3,7 +3,7 @@
 use warnings;
 use strict;
 use 5.10.1;
-use Data::Dumper::Simple;
+# use Data::Dumper::Simple;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 
@@ -321,7 +321,6 @@ $expected=	qq<H2|IGNORE|BODYTEXT|IGNORE|BODYTEXT|H2|IGNORE|BODYTEXT|IGNORE>;
 
 sub parseheadingtext {
     my (@stream) = @_ ;
-#     warn Dumper @stream;
     # run a custom parser on text... output in stack
     # convert nested heading bodytext to headingtext
     # flatten
@@ -336,10 +335,8 @@ sub parseheadingtext {
 	}
 	$tok->[0] =~ s/BODYTEXT/IGNORE/ ; # no body text either outside of headings
     }
-#     warn Dumper @stream;
     @stream = mergetokens flatten @stream;
     
-#     warn Dumper @stream;
     return @stream;
 }
 

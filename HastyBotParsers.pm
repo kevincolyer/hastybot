@@ -6,10 +6,10 @@ use strict;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
-use Data::Dumper::Simple;
+# use Data::Dumper::Simple;
 
 package HastyBotParsers;
-use lib "/home/kevin/Dropbox/development/modules";
+#use lib "/home/kevin/Dropbox/development/modules";
 use MediaWikiParser qw(tokenise parse rendertext rendertokens customparser flatten mergetokens make_iterator);
 #say "You are using version: $MediaWikiParser::VERSION of MediaWikiParser";
 
@@ -113,7 +113,6 @@ my %o2 = (
     
      if (!$unflatten) { @stream=flatten(@stream) }
     @stream= mergetokens( @stream);
-#     warn Dumper @stream;
     return @stream;
 }
 
@@ -215,7 +214,6 @@ my %o2 = (
     
     if (!$unflatten) { @stream=flatten(@stream) }
     @stream= mergetokens( @stream);
-#     warn Dumper @stream;
     return @stream;
 }
 

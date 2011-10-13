@@ -8,7 +8,7 @@ use warnings;
 use strict;
 use 5.10.1;
 use Test::More qw( no_plan ); #tests => 3;
-use Data::Dumper::Simple;
+#use Data::Dumper::Simple;
 use utf8;
 
 use lib "/home/kevin/Dropbox/development/modules";

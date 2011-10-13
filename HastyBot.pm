@@ -10,7 +10,7 @@ binmode STDOUT, ":encoding(UTF-8)";
 
 use LWP::Simple;
 use MediaWiki::Bot;
-use Data::Dumper::Simple;
+# use Data::Dumper::Simple;
 
 # Version 1, 31/1/2010
 # Script to get newest pages.

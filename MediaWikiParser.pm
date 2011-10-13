@@ -6,9 +6,9 @@ use strict;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
-use Data::Dumper::Simple;
+# use Data::Dumper::Simple;
 
-use lib "/home/kevin/Dropbox/development/modules";
+#use lib "/home/kevin/Dropbox/development/modules";
 
 package MediaWikiParser;
  
@@ -25,6 +25,11 @@ our $debug=0;
 our $timed=0;
 our $debugtokens=0;
 
+sub value 	($)  { $_[0]->[1] 	};
+sub setvalue 	($$) { $_[0]->[1]=$_[1] };
+sub token 	($)  { $_[0]->[0] 	};
+sub settoken 	($$) { $_[0]->[0]=$_[1] };
+
 sub tokenise {
     my ($text) = @_;
     my @stream ;
@@ -38,25 +43,26 @@ sub tokenise {
 	    #	    'URL'
 	    # http regexp inspiration from http://www.wellho.net/resources/ex.php4?item=p212/regextra
 	    # tokenise some code and inspiration from MJD's Higher Order Perl...
+	    # MJD says that the i mod tends to disable optimisations - hence extra patterns below... (http://perl.plover.com/yak/regex/samples/slide080.html) - seems to work well - now 0.8s to 0.65 ish...
  
 	    return ['WS', 	   $1]	if $text =~ /\G (\h+)		/gcx; # \h is horiz ws = space tab but not newline
 
 	    return ['MAILTO',      $1] 	if $text =~ /\G (
-							    (?:mailto\:)
+							    (?:mailto\:|MAILTO\:)
 							    (?:\/\/)?		# optional
 							    (?:[^\s]+)		# before @
 							    (?:\@)			# must have an @
 							    (?:(?:[^\s\]\.\}])+)	# atleast one word
 							    (?:\.(?:[^\s\]\}])+)?	# optional . and word
-							    )		/gcxi;
+							    )		/gcx;
 	    return ['URL',         $1] 	if $text =~ /\G (
-							(?:http|https|ftp)
+							(?:http|https|ftp|HTTP|HTTPS|FTP)
 							(?:\:\/\/)  
 							(?:[^\:\/\s\]\}]+)        # server
 							(?:\:\d+)?              # port - optional
 							(?:\/[^\#\s\]\}]+)?         # page - optional
 							(?:[\/|\#](?:[^\]\}|\S]*))?          # place - optional need ] here?
-								)	/gcxi;
+								)	/gcx;
 
 	    return ['BODYWORD',    $1] 	if $text =~ /\G (\w+)		/gcx;
 	    return ['MAGICWORD',   $1] 	if $text =~ /\G	(__[A-Z]+__)	/gcx;
@@ -77,8 +83,8 @@ sub tokenise {
 	    return ['HEADING_C',   $1] 	if $text =~ /\G (={1,6})	/gcx; #heading_o below...
 	   
 	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
-	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>)	/igcx;
-	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/nowiki>)	/igcx;
+	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>|<NOWIKIKI>)	/gcx;
+	    return ['NOWIKI_C',    $1] 	if $text =~ /\G	(<\/nowiki>|<\/NOWIKI>)	/gcx;
 	    #       'HTMLCOM'
 	    return ['HTMLCOM_O',   $1] 	if $text =~ /\G	(<!--)		/gcx;
 	    return ['HTMLCOM_C',   $1] 	if $text =~ /\G	(-->)		/gcx;
@@ -100,13 +106,13 @@ sub tokenise {
 	    return ['TEMPL_O',     $1] 	if $text =~ /\G	(\{\{)		/gcx;
 	    return ['TEMPL_C',     $1] 	if $text =~ /\G	(\}\})		/gcx;
 
-	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>)		/igcx;
-	    return ['PRE_C',       $1] 	if $text =~ /\G	(<\/pre>)	/igcx;
+	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>|<PRE>)		/gcx;
+	    return ['PRE_C',       $1] 	if $text =~ /\G	(<\/pre>|<\/PRE>)	/gcx;
 	    #	    'HTML'
-	    return ['BR',          $1] 	if $text =~ /\G	(<br>)		/igcx;  
-	    return ['HR',          $1] 	if $text =~ /\G	(<hr>)		/igcx;  
+	    return ['BR',          $1] 	if $text =~ /\G	(<br\/?>|<BR\/?>)		/gcx;  
+	    return ['HR',          $1] 	if $text =~ /\G	(<hr\/?>|<HR\/?>)		/gcx;  
 	    return ['HTML_SINGLE', $1]	if $text =~ /\G(<\w*\/?>)	/gcx;
-	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcxi;
+	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcx;
 	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\w*>)	/gcx;
 
 	    return ['UNKNOWN',     $1] 	if $text =~ /\G (.)		/gcx;
@@ -119,60 +125,62 @@ sub tokenise {
     $last="n/a";
     _time("starting tokeniser") if $timed;
     my $tok;
-    while ($tok= $tokens->() ) {
+    while ($tok = $tokens->() ) {
 	# comments 
 	# opening and closing comments
 	# $state_nowiki $state_htmlcom
 	# htmlcomments 
-	say $tok->[0]," " x (20-length($tok->[0])),"| ".$tok->[1] if $debugtokens;
+# 	say $tok->[0]," " x (20-length($tok->[0])),"| ".$tok->[1] if $debugtokens;
+ 	say token $tok," " x (20-length(token $tok)),"| ".value $tok if $debugtokens;
+#	settoken $tok => "BOBBLE";
+#	do {print token $tok; say value $tok} if $debugtokens;
 	
-	if ($tok->[0] eq 'HTMLCOM_O') {
+	if (token $tok eq 'HTMLCOM_O') {
 	    if   ( $state_nowiki  or  $state_htmlcom ) 	
-		 { $tok->[0] = 'IGNORE' }
-	    else { $state_htmlcom = 1; $tok->[0] = 'IGNORE' } 
+		 { settoken $tok => 'IGNORE' }
+	    else { $state_htmlcom = 1; settoken $tok => 'IGNORE' } 
 	};
-	if ($tok->[0] eq 'HTMLCOM_C') {
+	if (token $tok eq 'HTMLCOM_C') {
 	    if   ( $state_nowiki  or !$state_htmlcom ) 	
-		 { $tok->[0] = 'IGNORE' }
-	    else { $state_htmlcom = 0; $tok->[0] = 'IGNORE' }  
+		 { settoken $tok => 'IGNORE' }
+	    else { $state_htmlcom = 0; settoken $tok => 'IGNORE' }  
 	};
 	# nowiki tags can be thrown away 
-	if ($tok->[0] eq 'NOWIKI_O') {
+	if (token $tok eq 'NOWIKI_O') {
 	    if   ( $state_nowiki  or  $state_htmlcom ) 
-		 { $tok->[0] = 'IGNORE' }
-	    else { $state_nowiki = 1; $tok->[0] = 'IGNORE' } 
+		 { settoken $tok =>  'IGNORE' }
+	    else { $state_nowiki = 1; settoken $tok => 'IGNORE' } 
 	};
-	if ($tok->[0] eq 'NOWIKI_C') {
+	if (token $tok eq 'NOWIKI_C') {
 	    if   ( !$state_nowiki or  $state_htmlcom ) 
-		 { $tok->[0] = 'IGNORE' }
-	    else { $state_nowiki = 0; $tok->[0] = 'IGNORE' }
+		 { settoken $tok => 'IGNORE' }
+	    else { $state_nowiki = 0; settoken $tok =>  'IGNORE' }
 	};
 
-	$tok->[0] = 'IGNORE' if $state_htmlcom; # if in a comment - mark text as ignored... 
-
-	$tok->[0] = 'NOWIKI' if $state_nowiki>1; # if in a nowiki mark as NOWIKI for user to do what they want with it
+	settoken $tok => 'IGNORE' if $state_htmlcom;  # if in a comment - mark text as ignored... 
+	settoken $tok => 'NOWIKI' if $state_nowiki>1; # if in a nowiki mark as NOWIKI for user to do what they want with it
 	$state_nowiki++ if $state_nowiki;
-	# now comments are done we can get on with some other things and not worry about comments
+	# now comments are done we can get on with some other things and not worry them
 
 	# TODO - inside html....
 	# HTML_BODY	=> 'IGNORE',
 
-	$this=$tok->[0];
+	$this = token $tok;
 	#warn "UNKNOWN token encountered |".$tok->[1]".| following |$last|" if ($this eq 'UNKNOWN' and $debug);
 	
 	# process HEADINGS - moved to _parseheading
 	
 	
-	if ($last eq "NL") { # this logic is faster than RE with m modifier... MUCH - saves >50% ?
-	    $tok->[0]='BULLET' 	   if $this eq 'ASTERISK';
-	    $tok->[0]='NUMLIST'    if $this eq 'HASH';
-	    $tok->[0]='HEADING_O'  if $this eq 'HEADING_C';
-	    $tok->[0]='PRE_SINGLE' if $this eq 'WS'; # NOTE WS can contain multplie spaces - pre is one following NL
+	if ($last eq "NL") { # this logic is faster than RE with m modifier... MUCH - saves >50% ? - could try with nl[\*])
+	    settoken $tok => 'BULLET' 	  if $this eq 'ASTERISK';
+	    settoken $tok => 'NUMLIST'    if $this eq 'HASH';
+	    settoken $tok => 'HEADING_O'  if $this eq 'HEADING_C';
+	    settoken $tok => 'PRE_SINGLE' if $this eq 'WS'; # NOTE WS can contain multplie spaces - pre is one following NL
 	}
 
 	# some optimisation to mergetokens tokens
-	if ($this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' )) { # or $this eq 'WS'
-	    $stream[-1][1].=$tok->[1];
+	if ( $this eq $last && ($this eq 'UNKNOWN' or $this eq 'IGNORE' )) { # or $this eq 'WS'
+	    $stream[-1][1].= value $tok;
 	    next;
 	}
         push @stream, $tok;
@@ -825,7 +833,7 @@ sub _simplify {
 };
 
 sub _simplify_old {
-        _time("starting simplify") if $timed;
+        _time("starting simplify_old") if $timed;
     my $groups=shift;
     #warn Dumper  $groups;
     $groups->{UNKNOWN} ||= 'UNKNOWN'; # a little sanity check - prevents undefs in stack that are hard to trace due to spelling mistakes!
@@ -849,7 +857,7 @@ sub _simplify_old {
 	push @returnstream, $tok;   		# and return the renamed token
     }
     #warn Dumper @returnstream;
-    _time("finishing simplify",-1) if $timed;
+    _time("finishing simplify_old",-1) if $timed;
 
     return @returnstream;
 };

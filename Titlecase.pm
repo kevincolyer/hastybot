@@ -7,7 +7,7 @@ use strict;
 use utf8;
 binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
-use Data::Dumper::Simple;
+# use Data::Dumper::Simple;
 use Tie::File::AsHash;
 
 package Titlecase;
