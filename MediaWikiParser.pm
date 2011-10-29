@@ -4,11 +4,10 @@ use 5.10.1;
 use strict;
 # licence - perl artistic licence...
 use utf8;
-binmode STDOUT, ":encoding(UTF-8)";
 use warnings FATAL => qw(uninitialized);
+binmode STDOUT, ":encoding(UTF-8)";
 # use Data::Dumper::Simple;
-
-#use lib "/home/kevin/Dropbox/development/modules";
+# use lib "/home/kevin/Dropbox/development/modules";
 
 package MediaWikiParser;
  
@@ -18,24 +17,59 @@ use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 our $VERSION     = 1.00;
 our @ISA         = qw(Exporter);
 our @EXPORT      = ();
-our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens debug timed customparser flatten mergetokens make_iterator);
-
+our @EXPORT_OK   = qw(tokenise parse rendertext rendertokens renderhtml debug timed customparser flatten mergetokens make_iterator);
 
 our $debug=0;
 our $timed=0;
 our $debugtokens=0;
 
-sub value 	($)  { $_[0]->[1] 	};
-sub setvalue 	($$) { $_[0]->[1]=$_[1] };
-sub token 	($)  { $_[0]->[0] 	};
-sub settoken 	($$) { $_[0]->[0]=$_[1] };
+sub value 	($)  { return $_[0]->[1] 	};
+sub setvalue 	($$) { return $_[0]->[1]=$_[1]  };
+sub token 	($)  { return $_[0]->[0] 	};
+sub settoken 	($$) { return $_[0]->[0]=$_[1]  };
 
+# alternate tokeniser that pre-processes handles the html comments and nowiki and noincludes as done in the real MW parser. Should make logic in the tokenise function easier (and some of the expensive searches - such as urls and mailtos - my addition) 
+# sub tokenise2 {
+#   my $text = shift;
+#   return ( ['IGNORE', ''] ) if !defined $text; # case of null input
+#   return ( ['IGNORE', ''] ) if $text eq "";    # case of null input
+#   my @stream=preprocess($text);
+#   return @stream = grep{ tokenise(value $_) if token $_ eq 'UNTOKENISED'} @stream;
+# }
+# 
+# sub preproces {
+#     my $text=shift;
+#     my @stream=(['UNTOKENISED',$text]);
+#     my @gstream;
+#     # handle htmlcomments (first)
+#     @stream=grep { 
+#       $text= value $_;
+#       @gstream=();
+#       while ($text =~ m/(?!<!--)(<!--.*?-->)(.*)/) {
+#         push @gstream, ['UNTOKENISED',$1],['HTMLCOM',$2];
+#         $text=$3;
+#       }
+# As a workaround for this problem, Perl 5.10.0 introduces ${^PREMATCH} , ${^MATCH} and ${^POSTMATCH} , which are equivalent to $` , $& and $' , except that they are only guaranteed to be defined after a successful match that was executed with the /p (preserve) modifier. The use of these variables incurs no global performance penalty, unlike their punctuation char equivalents, however at the trade-off that you have to tell perl when you want to use them. 
+#       push @gstream, ['UNTOKENISED',$text];
+#     } @stream;
+#     return ['HTMLCOM_O',   $1]  if $text =~ /\G (<!--)          /gcx;
+#     return ['HTMLCOM_C',   $1]  if $text =~ /\G (-->)           /gcx;
+#     # handle nowwiki
+#     return ['NOWIKI_O',    $1]      if $text =~ /\G (<nowiki>|<NOWIKIKI>)   /gcx;
+#     return ['NOWIKI_C',    $1]  if $text =~ /\G (<\/nowiki>|<\/NOWIKI>) /gcx;
+#             #       'HTMLCOM'
+#     # handle noincludes
+#     # handle URL and MAILTO
+#     return @stream;
+# }
 sub tokenise {
     my ($text) = @_;
+    return ( ['IGNORE', ''] ) if !defined $text; # case of null input
+    return ( ['IGNORE', ''] ) if $text eq ""; 	 # case of null input
     my @stream ;
     my $state_nowiki=0;
     my $state_htmlcom=0;
-    my @state_html; # state variable is a stack... perhaps we need a stack here too?
+    # my @state_html; # state variable is a stack... perhaps we need a stack here too?
 
     #study $text;
     my $tokens = sub {
@@ -48,19 +82,19 @@ sub tokenise {
 	    return ['WS', 	   $1]	if $text =~ /\G (\h+)		/gcx; # \h is horiz ws = space tab but not newline
 
 	    return ['MAILTO',      $1] 	if $text =~ /\G (
-							    (?:mailto\:|MAILTO\:)
-							    (?:\/\/)?		# optional
-							    (?:[^\s]+)		# before @
-							    (?:\@)			# must have an @
-							    (?:(?:[^\s\]\.\}])+)	# atleast one word
-							    (?:\.(?:[^\s\]\}])+)?	# optional . and word
-							    )		/gcx;
+                                                        (?:mailto\:|MAILTO\:)
+                                                        (?:\/\/)?		# optional
+                                                        (?:[^\s]+)		# before @
+                                                        (?:\@)			# must have an @
+                                                        (?:(?:[^\s\]\.\}])+)	# atleast one word
+                                                        (?:\.(?:[^\s\]\}])+)?	# optional . and word
+                                                        )		/gcx;
 	    return ['URL',         $1] 	if $text =~ /\G (
 							(?:http|https|ftp|HTTP|HTTPS|FTP)
 							(?:\:\/\/)  
-							(?:[^\:\/\s\]\}]+)        # server
+							(?:[^\:\/\s\]\}]+)      # server
 							(?:\:\d+)?              # port - optional
-							(?:\/[^\#\s\]\}]+)?         # page - optional
+							(?:\/[^\#\s\]\}]+)?     # page - optional
 							(?:[\/|\#](?:[^\]\}|\S]*))?          # place - optional need ] here?
 								)	/gcx;
 
@@ -74,13 +108,13 @@ sub tokenise {
 	    return ['BOLD',	   $1]  if $text =~ /\G (''')		/gcx;
 	    return ['ITALIC',	   $1]  if $text =~ /\G ('')		/gcx;
 	    return ['APOSTROPHY',  $1]  if $text =~ /\G (')		/gcx;
-	    return ['ASTERISK',    $1] 	if $text =~ /\G (\*)		/gcx; #need m for multiline to enable anchors here...
-	    return ['HASH',        $1] 	if $text =~ /\G (\#)		/gcx; #need m for multiline to enable anchors here...
+	    return ['ASTERISK',    $1] 	if $text =~ /\G (\*)		/gcx;   # need m for multiline to enable anchors here...
+	    return ['HASH',        $1] 	if $text =~ /\G (\#)		/gcx;   # need m for multiline to enable anchors here...
 	    
-	    return ['BODYWORD',    $1]  if $text =~ /\G ([," \? \( \)]) /gcx; #catch all for optimisation sake - common punc that falls through
+	    return ['BODYWORD',    $1]  if $text =~ /\G ([," \? \( \)]) /gcx;   # catch all for optimisation sake - common punc that falls through
 
 	    return ['NL',          $1]	if $text =~ /\G (\n+)		/gcx; # put above whites space
-	    return ['HEADING_C',   $1] 	if $text =~ /\G (={1,6})	/gcx; #heading_o below...
+	    return ['HEADING_C',   $1] 	if $text =~ /\G (={1,6})	/gcx; # heading_o below...
 	   
 	    return ['NBSP',	   $1] 	if $text =~ /\G	(\&nbsp;)	/gcx;
 	    return ['NOWIKI_O',    $1] 	if $text =~ /\G	(<nowiki>|<NOWIKIKI>)	/gcx;
@@ -109,8 +143,8 @@ sub tokenise {
 	    return ['PRE_O',       $1] 	if $text =~ /\G	(<pre>|<PRE>)		/gcx;
 	    return ['PRE_C',       $1] 	if $text =~ /\G	(<\/pre>|<\/PRE>)	/gcx;
 	    #	    'HTML'
-	    return ['BR',          $1] 	if $text =~ /\G	(<br\/?>|<BR\/?>)		/gcx;  
-	    return ['HR',          $1] 	if $text =~ /\G	(<hr\/?>|<HR\/?>)		/gcx;  
+	    return ['BR',          $1] 	if $text =~ /\G	(<br\/?>|<BR\/?>)	/gcx;  
+	    return ['HR',          $1] 	if $text =~ /\G	(<hr\/?>|<HR\/?>)	/gcx;  
 	    return ['HTML_SINGLE', $1]	if $text =~ /\G(<\w*\/?>)	/gcx;
 	    return ['HTML_O',      $1] 	if $text =~ /\G	(<\w+.*?>)	/gcx;
 	    return ['HTML_C',      $1] 	if $text =~ /\G	(<\/\w*>)	/gcx;
@@ -159,18 +193,16 @@ sub tokenise {
 
 	settoken $tok => 'IGNORE' if $state_htmlcom;  # if in a comment - mark text as ignored... 
 	settoken $tok => 'NOWIKI' if $state_nowiki>1; # if in a nowiki mark as NOWIKI for user to do what they want with it
-	$state_nowiki++ if $state_nowiki;
+	$state_nowiki++ if $state_nowiki; # TODO why is this here?
 	# now comments are done we can get on with some other things and not worry them
 
 	# TODO - inside html....
 	# HTML_BODY	=> 'IGNORE',
 
 	$this = token $tok;
-	#warn "UNKNOWN token encountered |".$tok->[1]".| following |$last|" if ($this eq 'UNKNOWN' and $debug);
-	
+	# warn "UNKNOWN token encountered |".$tok->[1]".| following |$last|" if ($this eq 'UNKNOWN' and $debug);
 	# process HEADINGS - moved to _parseheading
-	
-	
+		
 	if ($last eq "NL") { # this logic is faster than RE with m modifier... MUCH - saves >50% ? - could try with nl[\*])
 	    settoken $tok => 'BULLET' 	  if $this eq 'ASTERISK';
 	    settoken $tok => 'NUMLIST'    if $this eq 'HASH';
@@ -209,6 +241,36 @@ sub rendertokens {
     $_=_render("|",0,@_);
     say if $debug;
     return $_;
+}
+
+sub renderhtml {
+    _time("starting renderhtml") if $timed;
+    push my @stream ,   @_  ;
+    my $text="";
+#say "in _render - initial stack is...";
+#warn Dumper @stream;
+    my $it = walkstream( \@stream ) ;
+    my ($tok,$t);
+    while ($tok = NEXTVAL($it)) {
+#	warn Dumper $tok;
+	#next if @{$tok}==0;
+	if (ref( $tok->[1] ) eq 'ARRAY') {
+	    # nothing for nowiki
+	    # $text.=$tok->[0] if $which==0; 	# if rendering tokens(=0) then we want to see the token of array ref
+	    $t="";
+	} else {
+	    given (token $tok) {
+		when ('BOLD')		{ state $tog=1; $tog=!$tog; $t= (!$tog) ? '<b>' : '</b>'  };
+		when ('ITALIC')		{ state $tog=1; $tog=!$tog; $t= (!$tog) ? '<i>' : '</i>'  };
+		when ('BULLET')		{ state $tog=1; $tog=!$tog; $t= (!$tog) ? '<li>' : '</li>'  };
+		#when ('BODYWORD')	{ $t= '<p>'. ( value $tok ) ."</p>\n"  };
+		default  		{ $t= value $tok };
+	    }
+	}
+	$text.=$t;
+    }
+    _time("finished rendertml",-1) if $timed;
+    return $text;    
 }
 
 sub rendertokensbartext {
@@ -276,7 +338,7 @@ sub customparser {
     _time("starting custom parser") if $timed;
 
     my ($wikitext,$o1,$o2, @parsers)=@_;
-
+    $wikitext="" if !defined $wikitext; # case of null input
     # tokenising
     my @stream=	tokenise($wikitext);
 
@@ -335,8 +397,8 @@ sub _testparser {
 	WS 		=> 'BODYTEXT', 	   
 	APOSTROPHY 	=> 'BODYTEXT',  
 
-	BOLD 		=> 'IGNORE', 		#in this case   
-	ITALIC 		=> 'IGNORE', 		#in this case	   
+	BOLD 		=> 'BOLD', 		#in this case   
+	ITALIC 		=> 'ITALIC', 		#in this case	   
 	HEADING_O 	=> 'HEADING', 
 	HEADING_C 	=> 'HEADING',  
 	H1		=> 'H1',
